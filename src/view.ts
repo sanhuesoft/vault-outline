@@ -58,26 +58,53 @@ export class VaultOutlineView extends ItemView {
 			return;
 		}
 
-		// Show a loading state while the async build runs
 		const rootFile = this.currentFile;
 		buildOutlineTree(this.app, rootFile, this.settings.maxDepth).then((tree) => {
-			// Abort if the file changed while we were building
 			if (this.currentFile?.path !== rootFile.path) return;
 
 			this.treeFilePaths = collectTreePaths(tree);
 
 			const container = this.containerEl.children[1] as HTMLElement;
 			container.empty();
-			const ul = container.createEl('ul', { cls: 'vault-outline-list' });
-			this.renderNode(ul, tree, true);
+			const root = container.createDiv({ cls: 'vault-outline-root' });
+			this.renderNode(root, tree, true);
 		});
 	}
 
 	private renderNode(parent: HTMLElement, node: OutlineNode, isRoot: boolean): void {
-		const li = parent.createEl('li', { cls: 'vault-outline-item' });
+		const hasChildren = node.children.length > 0;
 
-		const link = li.createEl('a', {
-			cls: isRoot ? 'vault-outline-link vault-outline-root-link' : 'vault-outline-link',
+		// Outer container — mirrors how Obsidian's own tree works
+		const item = parent.createDiv({ cls: 'tree-item vault-outline-node' });
+		if (isRoot) item.addClass('vault-outline-node-root');
+
+		// Self row (the clickable / toggle row)
+		const self = item.createDiv({ cls: 'tree-item-self' });
+
+		if (hasChildren) {
+			// Collapse arrow — Obsidian styles this via .tree-item-icon
+			const icon = self.createDiv({ cls: 'tree-item-icon collapse-icon' });
+			// Use the same svg chevron Obsidian uses in its own panels
+			icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+				fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+				class="svg-icon right-triangle"><path d="M3 8L12 17L21 8"/></svg>`;
+
+			const children = item.createDiv({ cls: 'tree-item-children' });
+			for (const child of node.children) {
+				this.renderNode(children, child, false);
+			}
+
+			this.registerDomEvent(self, 'click', (e) => {
+				// Only toggle when clicking the icon (not the link text)
+				if ((e.target as HTMLElement).closest('.vault-outline-link')) return;
+				item.classList.toggle('is-collapsed');
+				children.style.display = item.classList.contains('is-collapsed') ? 'none' : '';
+			});
+		}
+
+		// The note name link
+		const link = self.createEl('a', {
+			cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : ''),
 		});
 		link.setText(node.name);
 		link.setAttribute('aria-label', node.file);
@@ -85,13 +112,7 @@ export class VaultOutlineView extends ItemView {
 		this.registerDomEvent(link, 'click', () => {
 			this.app.workspace.openLinkText(node.file, '', true);
 		});
-
-		if (node.children.length > 0) {
-			const ul = li.createEl('ul', { cls: 'vault-outline-list' });
-			for (const child of node.children) {
-				this.renderNode(ul, child, false);
-			}
-		}
 	}
 }
+
 

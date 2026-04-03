@@ -1,4 +1,4 @@
-/* Vault Outline – sidebar view styles */
+/* Vault Outline – minimal overrides on top of Obsidian's native tree-item styles */
 
 .vault-outline-empty {
 	padding: 12px;
@@ -6,29 +6,33 @@
 	font-style: italic;
 }
 
-.vault-outline-list {
-	list-style: disc;
-	padding-left: 1.4em;
-	margin: 0;
+.vault-outline-root {
+	padding: 4px 0;
 }
 
-.vault-outline-item {
-	line-height: 1.6;
+/* Root node: slightly bolder */
+.vault-outline-root-link {
+	font-weight: var(--font-semibold);
 }
 
-.vault-outline-link {
+/* Make the self-row cursor a pointer and show hover highlight */
+.vault-outline-node > .tree-item-self {
 	cursor: pointer;
-	color: var(--link-color);
+	border-radius: var(--radius-s);
+}
+
+.vault-outline-node > .tree-item-self:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* Link inside the tree: inherit tree-item styling, no underline by default */
+.vault-outline-link {
+	color: var(--tree-item-color, var(--text-normal));
 	text-decoration: none;
-	font-family: var(--font-interface);
-	font-size: var(--font-ui-small);
+	cursor: pointer;
+	flex: 1;
 }
 
 .vault-outline-link:hover {
-	color: var(--link-color-hover);
-	text-decoration: underline;
-}
-
-.vault-outline-root-link {
-	font-weight: var(--font-semibold);
+	color: var(--text-accent);
 }
