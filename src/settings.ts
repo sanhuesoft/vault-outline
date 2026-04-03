@@ -1,36 +1,41 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
-import MyPlugin from "./main";
+import { App, PluginSettingTab, Setting } from 'obsidian';
+import VaultOutlinePlugin from './main';
 
-export interface MyPluginSettings {
-	mySetting: string;
+export interface VaultOutlineSettings {
+	maxDepth: number;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+export const DEFAULT_SETTINGS: VaultOutlineSettings = {
+	maxDepth: 5,
+};
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+export class VaultOutlineSettingTab extends PluginSettingTab {
+	plugin: VaultOutlinePlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: VaultOutlinePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
-		const {containerEl} = this;
-
+		const { containerEl } = this;
 		containerEl.empty();
+		containerEl.createEl('h2', { text: 'Vault outline settings' });
 
 		new Setting(containerEl)
-			.setName('Settings #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName('Maximum depth')
+			.setDesc('How many levels deep to follow links. Increase for larger graphs, or lower it to keep the outline compact.')
+			.addText(text =>
+				text
+					.setPlaceholder('5')
+					.setValue(String(this.plugin.settings.maxDepth))
+					.onChange(async (value) => {
+						const parsed = parseInt(value, 10);
+						if (!isNaN(parsed) && parsed > 0) {
+							this.plugin.settings.maxDepth = parsed;
+							await this.plugin.saveSettings();
+						}
+					})
+			);
 	}
 }
