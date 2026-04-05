@@ -10,7 +10,7 @@ import { OutlineNode } from './types';
  * NOTE: Links are only considered when they appear inside a comment block:
  * A comment block is a pair of lines containing only %% (start and end).
  */
-const BULLET_WIKILINK = /^\s*-\s*\[\[([^\]]+)\]\]\s*$/;
+const BULLET_WIKILINK = /^\s*-\s*\[\[([^\]]+)\]\]/;
 const COMMENT_BLOCK_DELIM = /^\s*%%\s*$/;
 
 export async function buildOutlineTree(app: App, rootFile: TFile, maxDepth: number): Promise<OutlineNode> {
