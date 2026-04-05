@@ -80,39 +80,48 @@ export class VaultOutlineView extends ItemView {
 
 		// Self row (the clickable / toggle row)
 		const self = item.createDiv({ cls: 'tree-item-self' });
+		self.setAttribute('tabindex', '0');
+
+		let childrenContainer: HTMLElement | null = null;
 
 		if (hasChildren) {
 			// Collapse arrow — Obsidian styles this via .tree-item-icon
 			const icon = self.createDiv({ cls: 'tree-item-icon collapse-icon' });
-			// Use the same svg chevron Obsidian uses in its own panels
-			icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-				fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-				class="svg-icon right-triangle"><path d="M3 8L12 17L21 8"/></svg>`;
+			icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8L12 17L21 8"/></svg>`;
 
-			const children = item.createDiv({ cls: 'tree-item-children' });
+			childrenContainer = item.createDiv({ cls: 'tree-item-children' });
 			for (const child of node.children) {
-				this.renderNode(children, child, false);
+				this.renderNode(childrenContainer, child, false);
 			}
 
-			this.registerDomEvent(self, 'click', (e) => {
-				// Only toggle when clicking the icon (not the link text)
-				if ((e.target as HTMLElement).closest('.vault-outline-link')) return;
+			this.registerDomEvent(icon, 'click', (e) => {
+				e.preventDefault();
+				e.stopPropagation();
 				item.classList.toggle('is-collapsed');
-				children.style.display = item.classList.contains('is-collapsed') ? 'none' : '';
+				childrenContainer!.style.display = item.classList.contains('is-collapsed') ? 'none' : '';
 			});
+		} else {
+			// placeholder to align with icons
+			self.createDiv({ cls: 'tree-item-icon' });
 		}
 
-		// The note name link
-		const link = self.createEl('a', {
-			cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : ''),
-		});
-		link.setText(node.name);
-		link.setAttribute('aria-label', node.file);
+		// The note name (not an anchor element so it doesn't get link styling)
+		const text = self.createDiv({ cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : '') });
+		text.setText(node.name);
+		text.setAttribute('aria-label', node.file);
 
-		this.registerDomEvent(link, 'click', () => {
+		// Clicking anywhere in the row (except the icon) opens the note in a new tab
+		this.registerDomEvent(self, 'click', (e) => {
+			if ((e.target as HTMLElement).closest('.tree-item-icon')) return;
 			this.app.workspace.openLinkText(node.file, '', true);
+		});
+
+		// Keyboard activation (Enter / Space)
+		this.registerDomEvent(self, 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				this.app.workspace.openLinkText(node.file, '', true);
+			}
 		});
 	}
 }
-
-

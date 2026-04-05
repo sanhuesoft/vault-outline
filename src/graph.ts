@@ -7,8 +7,11 @@ import { OutlineNode } from './types';
  *   - [[Note name#heading]]
  *   - [[Note name|alias]]
  * Capture group 1 is the raw link target (may include #anchor or |alias).
+ * NOTE: Links are only considered when they appear inside a comment block:
+ * A comment block is a pair of lines containing only %% (start and end).
  */
 const BULLET_WIKILINK = /^\s*-\s*\[\[([^\]]+)\]\]\s*$/;
+const COMMENT_BLOCK_DELIM = /^\s*%%\s*$/;
 
 export async function buildOutlineTree(app: App, rootFile: TFile, maxDepth: number): Promise<OutlineNode> {
 	const visited = new Set<string>();
@@ -27,7 +30,17 @@ async function buildNode(app: App, file: TFile, depth: number, visited: Set<stri
 	const content = await app.vault.cachedRead(file);
 	const seen = new Set<string>();
 
+	let inCommentBlock = false;
 	for (const line of content.split('\n')) {
+		// Toggle comment block state when encountering a delimiter line
+		if (COMMENT_BLOCK_DELIM.test(line)) {
+			inCommentBlock = !inCommentBlock;
+			continue;
+		}
+
+		// Only process lines that are inside a comment block
+		if (!inCommentBlock) continue;
+
 		const match = BULLET_WIKILINK.exec(line);
 		if (!match) continue;
 
