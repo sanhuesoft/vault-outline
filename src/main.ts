@@ -43,7 +43,7 @@ export default class VaultOutlinePlugin extends Plugin {
 		);
 
 		this.app.workspace.onLayoutReady(() => {
-			this.updateView();
+			this.activateView();
 		});
 	}
 
