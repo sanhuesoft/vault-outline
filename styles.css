@@ -48,3 +48,13 @@
 	justify-content: center;
 	color: var(--text-muted);
 }
+
+/* Highlight the currently active note */
+.vault-outline-node > .tree-item-self.vault-outline-active {
+	background-color: var(--background-modifier-active-hover);
+}
+
+.vault-outline-node > .tree-item-self.vault-outline-active .vault-outline-link {
+	color: var(--text-accent);
+	font-weight: var(--font-semibold);
+}

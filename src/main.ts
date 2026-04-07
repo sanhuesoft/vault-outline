@@ -87,8 +87,11 @@ export default class VaultOutlinePlugin extends Plugin {
 		if (!activeView?.file) return;
 
 		// If the newly active note is already part of the current tree,
-		// keep the existing outline intact (stable root).
-		if (view.isInCurrentTree(activeView.file)) return;
+		// keep the existing outline intact (stable root) but update the highlight.
+		if (view.isInCurrentTree(activeView.file)) {
+			view.setActiveFile(activeView.file.path);
+			return;
+		}
 
 		view.setFile(activeView.file);
 	}

@@ -9,6 +9,7 @@ export class VaultOutlineView extends ItemView {
 	private settings: VaultOutlineSettings;
 	public currentFile: TFile | null = null;
 	private treeFilePaths: Set<string> = new Set();
+	private activeFilePath: string | null = null;
 
 	constructor(leaf: WorkspaceLeaf, settings: VaultOutlineSettings) {
 		super(leaf);
@@ -42,6 +43,12 @@ export class VaultOutlineView extends ItemView {
 
 	setFile(file: TFile | null): void {
 		this.currentFile = file;
+		this.activeFilePath = file?.path ?? null;
+		this.refresh();
+	}
+
+	setActiveFile(path: string): void {
+		this.activeFilePath = path;
 		this.refresh();
 	}
 
@@ -106,9 +113,11 @@ export class VaultOutlineView extends ItemView {
 		}
 
 		// The note name (not an anchor element so it doesn't get link styling)
+		const isActive = node.file === this.activeFilePath;
 		const text = self.createDiv({ cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : '') });
 		text.setText(node.name);
 		text.setAttribute('aria-label', node.file);
+		if (isActive) self.addClass('vault-outline-active');
 
 		// Clicking anywhere in the row (except the icon) opens the note in a new tab
 		this.registerDomEvent(self, 'click', (e) => {
