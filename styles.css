@@ -56,6 +56,11 @@
 	text-decoration: none;
 }
 
+/* Hide children of collapsed nodes */
+.vault-outline-node.is-collapsed > .tree-item-children {
+	display: none;
+}
+
 /* Keep the icon area compact */
 .vault-outline-node .tree-item-icon {
 	width: 18px;

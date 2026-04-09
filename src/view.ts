@@ -106,7 +106,6 @@ export class VaultOutlineView extends ItemView {
 				e.preventDefault();
 				e.stopPropagation();
 				item.classList.toggle('is-collapsed');
-				childrenContainer!.style.display = item.classList.contains('is-collapsed') ? 'none' : '';
 			});
 		} else {
 			// placeholder to align with icons
