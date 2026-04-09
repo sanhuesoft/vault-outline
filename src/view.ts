@@ -1,4 +1,4 @@
-import { ItemView, TFile, WorkspaceLeaf } from 'obsidian';
+import { ItemView, Menu, TFile, WorkspaceLeaf } from 'obsidian';
 import { buildOutlineTree, collectTreePaths } from './graph';
 import { VaultOutlineSettings } from './settings';
 import { OutlineNode } from './types';
@@ -73,7 +73,8 @@ export class VaultOutlineView extends ItemView {
 
 			const container = this.containerEl.children[1] as HTMLElement;
 			container.empty();
-			const root = container.createDiv({ cls: 'vault-outline-root' });
+			const rootCls = 'vault-outline-root' + (this.settings.wrapText ? ' vault-outline-wrap' : '');
+			const root = container.createDiv({ cls: rootCls });
 			this.renderNode(root, tree, true);
 		});
 	}
@@ -119,17 +120,36 @@ export class VaultOutlineView extends ItemView {
 		text.setAttribute('aria-label', node.file);
 		if (isActive) self.addClass('vault-outline-active');
 
-		// Clicking anywhere in the row (except the icon) opens the note in a new tab
+		// Clicking anywhere in the row (except the icon) opens the note in the current tab
 		this.registerDomEvent(self, 'click', (e) => {
 			if ((e.target as HTMLElement).closest('.tree-item-icon')) return;
-			this.app.workspace.openLinkText(node.file, '', true);
+			this.app.workspace.openLinkText(node.file, '', false);
+		});
+
+		// Right-click context menu
+		this.registerDomEvent(self, 'contextmenu', (e: MouseEvent) => {
+			e.preventDefault();
+			const menu = new Menu();
+			menu.addItem((item) =>
+				item
+					.setTitle('Open in current tab')
+					.setIcon('arrow-right')
+					.onClick(() => this.app.workspace.openLinkText(node.file, '', false))
+			);
+			menu.addItem((item) =>
+				item
+					.setTitle('Open in new tab')
+					.setIcon('plus')
+					.onClick(() => this.app.workspace.openLinkText(node.file, '', true))
+			);
+			menu.showAtMouseEvent(e);
 		});
 
 		// Keyboard activation (Enter / Space)
 		this.registerDomEvent(self, 'keydown', (e: KeyboardEvent) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
-				this.app.workspace.openLinkText(node.file, '', true);
+				this.app.workspace.openLinkText(node.file, '', false);
 			}
 		});
 	}

@@ -96,6 +96,10 @@ export default class VaultOutlinePlugin extends Plugin {
 		view.setFile(activeView.file);
 	}
 
+	refreshOutlineView(): void {
+		this.getOutlineView()?.refresh();
+	}
+
 	private getOutlineView(): VaultOutlineView | null {
 		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
 		const first = leaves[0];

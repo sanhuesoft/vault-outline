@@ -24,6 +24,11 @@
 	padding: 2px 6px;
 }
 
+/* When wrap mode is active, align items to the top so the icon doesn't float mid-text */
+.vault-outline-wrap .vault-outline-node > .tree-item-self {
+	align-items: flex-start;
+}
+
 .vault-outline-node > .tree-item-self:hover {
 	background-color: var(--background-modifier-hover);
 }
@@ -33,6 +38,17 @@
 	color: var(--text-normal);
 	text-decoration: none;
 	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* When wrap mode is enabled, allow text to break across lines */
+.vault-outline-wrap .vault-outline-link {
+	white-space: normal;
+	overflow: visible;
+	text-overflow: unset;
+	word-break: break-word;
 }
 
 .vault-outline-link:hover {

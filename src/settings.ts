@@ -3,10 +3,12 @@ import VaultOutlinePlugin from './main';
 
 export interface VaultOutlineSettings {
 	maxDepth: number;
+	wrapText: boolean;
 }
 
 export const DEFAULT_SETTINGS: VaultOutlineSettings = {
 	maxDepth: 5,
+	wrapText: false,
 };
 
 export class VaultOutlineSettingTab extends PluginSettingTab {
@@ -35,6 +37,19 @@ export class VaultOutlineSettingTab extends PluginSettingTab {
 							this.plugin.settings.maxDepth = parsed;
 							await this.plugin.saveSettings();
 						}
+					})
+			);
+
+		new Setting(containerEl)
+			.setName('Wrap note titles')
+			.setDesc('When enabled, long note titles wrap to multiple lines. When disabled, titles stay on a single line.')
+			.addToggle(toggle =>
+				toggle
+					.setValue(this.plugin.settings.wrapText)
+					.onChange(async (value) => {
+						this.plugin.settings.wrapText = value;
+						await this.plugin.saveSettings();
+						this.plugin.refreshOutlineView();
 					})
 			);
 	}
