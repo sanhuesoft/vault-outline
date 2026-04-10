@@ -82,8 +82,8 @@ async function findMapRoot(app: App, file: TFile): Promise<TFile> {
 		const parents = await findCommentBlockParents(app, current);
 		const next = parents.find(p => !visited.has(p.path));
 		if (!next) {
-			console.log(`[vault-outline] findMapRoot: no unvisited parent found, falling back to "${file.basename}"`);
-			return file;
+			console.log(`[vault-outline] findMapRoot: no unvisited parent found, using topmost ancestor "${current.basename}"`);
+			return current;
 		}
 		current = next;
 	}
