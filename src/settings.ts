@@ -4,11 +4,13 @@ import VaultOutlinePlugin from './main';
 export interface VaultOutlineSettings {
 	maxDepth: number;
 	wrapText: boolean;
+	indexNoteName: string;
 }
 
 export const DEFAULT_SETTINGS: VaultOutlineSettings = {
 	maxDepth: 5,
 	wrapText: false,
+	indexNoteName: '§ Índice de mapas',
 };
 
 export class VaultOutlineSettingTab extends PluginSettingTab {
@@ -37,6 +39,19 @@ export class VaultOutlineSettingTab extends PluginSettingTab {
 							this.plugin.settings.maxDepth = parsed;
 							await this.plugin.saveSettings();
 						}
+					})
+			);
+
+		new Setting(containerEl)
+			.setName('Index note name')
+			.setDesc('Name of the note to show when no note is open. This note is used as the general index.')
+			.addText(text =>
+				text
+					.setPlaceholder('§ Índice de mapas')
+					.setValue(this.plugin.settings.indexNoteName)
+					.onChange(async (value) => {
+						this.plugin.settings.indexNoteName = value.trim();
+						await this.plugin.saveSettings();
 					})
 			);
 

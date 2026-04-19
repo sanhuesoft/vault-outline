@@ -36,7 +36,7 @@ export default class VaultOutlinePlugin extends Plugin {
 		this.registerEvent(
 			this.app.metadataCache.on('changed', (file: TFile) => {
 				const view = this.getOutlineView();
-				if (view && view.currentFile?.path === file.path) {
+				if (view && view.isInCurrentTree(file)) {
 					view.refresh();
 				}
 			})
@@ -84,16 +84,28 @@ export default class VaultOutlinePlugin extends Plugin {
 		if (!view) return;
 
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!activeView?.file) return;
-
-		// If the newly active note is already part of the current tree,
-		// keep the existing outline intact (stable root) but update the highlight.
-		if (view.isInCurrentTree(activeView.file)) {
-			view.setActiveFile(activeView.file.path);
+		if (activeView?.file) {
+			// If the newly active note is already part of the current tree,
+			// keep the existing outline intact (stable root) but update the highlight.
+			if (view.isInCurrentTree(activeView.file)) {
+				view.setActiveFile(activeView.file.path);
+				return;
+			}
+			view.setFile(activeView.file);
 			return;
 		}
 
-		view.setFile(activeView.file);
+		// No markdown view is currently focused.
+		// If markdown notes are still open (user clicked on a panel like the outline),
+		// don't change anything.
+		const markdownLeaves = this.app.workspace.getLeavesOfType('markdown');
+		if (markdownLeaves.length > 0) return;
+
+		// No open notes at all → fall back to the general index.
+		const indexFile = this.app.vault.getMarkdownFiles().find(
+			f => f.basename === this.settings.indexNoteName
+		) ?? null;
+		view.setFile(indexFile);
 	}
 
 	refreshOutlineView(): void {
