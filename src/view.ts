@@ -66,7 +66,11 @@ export class VaultOutlineView extends ItemView {
 		}
 
 		const rootFile = this.currentFile;
-		buildOutlineTree(this.app, rootFile, this.settings.maxDepth).then((tree) => {
+		const linkSearchOptions = {
+			sources: this.settings.linkSources,
+			headingName: this.settings.linkSearchHeading,
+		};
+		buildOutlineTree(this.app, rootFile, this.settings.maxDepth, linkSearchOptions).then((tree) => {
 			if (this.currentFile?.path !== rootFile.path) return;
 
 			this.treeFilePaths = collectTreePaths(tree);
