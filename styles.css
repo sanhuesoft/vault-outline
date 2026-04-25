@@ -21,7 +21,7 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 2px 6px;
+	padding: 2px 6px 2px 24px;
 }
 
 /* When wrap mode is active, align items to the top so the icon doesn't float mid-text */
@@ -67,18 +67,11 @@
 	margin-left: 15px;
 }
 
-/* Cover the guide line within the icon area so it doesn't show through
-   the transparent lower portion of the chevron SVG. */
-.vault-outline-node > .tree-item-self .collapse-icon {
-	position: relative;
-	z-index: 1;
-	background: var(--background-primary);
-}
-.vault-outline-node > .tree-item-self:hover .collapse-icon {
-	background: var(--background-modifier-hover);
-}
-.vault-outline-node > .tree-item-self.vault-outline-active .collapse-icon {
-	background: var(--background-modifier-active-hover);
+/* Suppress indentation guide lines drawn by the active theme so we don't
+   need any background-color tricks on the collapse icon (which caused the
+   mismatched "box" artifact on active/hovered rows). */
+.vault-outline-root .tree-item-children {
+	border-left: none;
 }
 
 /* Rotate the collapse chevron to point right when the branch is collapsed */
