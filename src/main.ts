@@ -1,6 +1,7 @@
-import { MarkdownView, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
+import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { DEFAULT_SETTINGS, VaultOutlineSettings, VaultOutlineSettingTab } from './settings';
-import { VaultOutlineView, VIEW_TYPE_VAULT_OUTLINE } from './view';
+import { VaultOutlineView, VIEW_TYPE_VAULT_OUTLINE, RearrangeModal } from './view';
+import { hasMapTag, reorderSubnotes } from './graph';
 
 export default class VaultOutlinePlugin extends Plugin {
 	settings: VaultOutlineSettings;
@@ -21,6 +22,71 @@ export default class VaultOutlinePlugin extends Plugin {
 			id: 'open-vault-outline',
 			name: 'Open vault outline',
 			callback: () => this.activateView(),
+		});
+
+		this.addCommand({
+			id: 'add-indexed-flag',
+			name: 'Add indexed flag to active note',
+			callback: async () => {
+				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+				if (!file) {
+					new Notice('No active note.');
+					return;
+				}
+				const cache = this.app.metadataCache.getFileCache(file);
+				if (cache?.frontmatter?.['indexed'] === true) {
+					new Notice(`"${file.basename}" already has the indexed flag.`);
+					return;
+				}
+				await this.app.fileManager.processFrontMatter(file, (fm) => { fm.indexed = true; });
+			},
+		});
+
+		this.addCommand({
+			id: 'add-definicion-tag',
+			name: 'Add tag: Definición to active note',
+			callback: async () => {
+				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+				if (!file) {
+					new Notice('No active note.');
+					return;
+				}
+				const cache = this.app.metadataCache.getFileCache(file);
+				const tags: string[] = cache?.frontmatter?.['tags'] ?? [];
+				const already = tags.some((t: string) =>
+					t.toLowerCase() === 'definición' || t.toLowerCase() === 'definicion'
+				);
+				if (already) {
+					new Notice(`"${file.basename}" already has the Definición tag.`);
+					return;
+				}
+				await this.app.fileManager.processFrontMatter(file, (fm) => {
+					const existing: string[] = fm['tags'] ?? [];
+					fm['tags'] = [...existing, 'Definición'];
+				});
+			},
+		});
+
+		this.addCommand({
+			id: 'rearrange-subnotes',
+			name: 'Rearrange subnotes of active note',
+			callback: () => {
+				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+				if (!file) {
+					new Notice('No active note.');
+					return;
+				}
+				const view = this.getOutlineView();
+				const node = view?.nodeMap.get(file.path);
+				if (!node || node.children.length === 0) {
+					new Notice(`"${file.basename}" has no subnotes to rearrange.`);
+					return;
+				}
+				// Open the rearrange modal
+				new RearrangeModal(this.app, node, async (newOrder: string[]) => {
+					await reorderSubnotes(this.app, node, newOrder);
+				}).open();
+			},
 		});
 
 		this.addSettingTab(new VaultOutlineSettingTab(this.app, this));
@@ -87,9 +153,9 @@ export default class VaultOutlinePlugin extends Plugin {
 
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (activeView?.file) {
-			// If the newly active note is already part of the current tree,
-			// keep the existing outline intact (stable root) but update the highlight.
-			if (view.isInCurrentTree(activeView.file)) {
+			// If the active note is itself a map, always re-root the outline at it.
+			// Otherwise, if it is already part of the current tree, just update the highlight.
+			if (!hasMapTag(this.app, activeView.file) && view.isInCurrentTree(activeView.file)) {
 				view.setActiveFile(activeView.file.path);
 				return;
 			}

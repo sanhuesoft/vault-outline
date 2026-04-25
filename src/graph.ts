@@ -6,7 +6,7 @@ const BULLET_WIKILINK = /^\s*-\s*\[\[([^\]]+)\]\]/;
 const COMMENT_BLOCK_DELIM = /^\s*%%\s*$/;
 const HEADING_LINE = /^(#{1,6})\s+(.+)$/;
 
-function hasMapTag(app: App, file: TFile): boolean {
+export function hasMapTag(app: App, file: TFile): boolean {
     const cache = app.metadataCache.getFileCache(file);
     if (!cache) return false;
     const tags = getAllTags(cache);

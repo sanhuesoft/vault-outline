@@ -32,6 +32,7 @@ export class VaultOutlineView extends ItemView {
     private settings: VaultOutlineSettings;
     public currentFile: TFile | null = null;
     private treeFilePaths: Set<string> = new Set();
+    public nodeMap: Map<string, OutlineNode> = new Map();
     private activeFilePath: string | null = null;
 
     constructor(leaf: WorkspaceLeaf, settings: VaultOutlineSettings) {
@@ -98,6 +99,7 @@ export class VaultOutlineView extends ItemView {
             if (this.currentFile?.path !== rootFile.path) return;
 
             this.treeFilePaths = collectTreePaths(tree);
+            this.nodeMap.clear();
             const container = this.containerEl.children[1] as HTMLElement;
             container.empty();
 
@@ -117,6 +119,9 @@ export class VaultOutlineView extends ItemView {
 
     private renderNode(parent: HTMLElement, node: OutlineNode, parentNode: OutlineNode | null, isRoot: boolean): void {
         const hasChildren = node.children.length > 0;
+
+        // Register this node so command palette commands can look it up
+        this.nodeMap.set(node.file, node);
 
         // Outer container
         const item = parent.createDiv({ cls: 'tree-item vault-outline-node' });
@@ -309,7 +314,7 @@ export class VaultOutlineView extends ItemView {
     }
 }
 
-class RearrangeModal extends Modal {
+export class RearrangeModal extends Modal {
     private node: OutlineNode;
     private items: string[];
     private onSave: (newOrder: string[]) => Promise<void>;
