@@ -68,9 +68,34 @@ export class VaultOutlineView extends ItemView {
     }
 
     setFile(file: TFile | null): void {
-        this.currentFile = file;
-        this.activeFilePath = file?.path ?? null;
-        this.refresh();
+        if (!file) {
+            this.currentFile = null;
+            this.activeFilePath = null;
+            this.refresh();
+            return;
+        }
+
+        // If there is no current outline yet, always show whatever file is opened.
+        if (!this.currentFile) {
+            this.currentFile = file;
+            this.activeFilePath = file.path;
+            this.refresh();
+            return;
+        }
+
+        // Pre-check: build the tree to decide if it has meaningful content.
+        // A lone note with no children and no map context should not replace
+        // the current outline — the user likely clicked a tangential file.
+        const linkSearchOptions = {
+            sources: this.settings.linkSources,
+            headingName: this.settings.linkSearchHeading,
+        };
+        buildOutlineTree(this.app, file, this.settings.maxDepth, linkSearchOptions).then(({ tree, isMap }) => {
+            if (!isMap && tree.children.length === 0) return;
+            this.currentFile = file;
+            this.activeFilePath = file.path;
+            this.refresh();
+        });
     }
 
     setActiveFile(path: string): void {
