@@ -24,30 +24,85 @@ function extractLinkAlias(raw: string): string | undefined {
     return alias.length > 0 ? alias : undefined;
 }
 
-function collectBulletLinksWithAliases(
+// Internal type for the hierarchical structure of a comment block.
+type BulletStructureItem =
+    | { type: 'link'; path: string; alias?: string; children: BulletStructureItem[] }
+    | { type: 'virtual'; label: string; children: BulletStructureItem[] };
+
+/**
+ * Parses all comment blocks in `lines` into a hierarchical BulletStructureItem tree.
+ * Plain bullet items (no wikilink) become virtual grouping nodes.
+ * Indented wikilinks under a virtual item become its children.
+ */
+function parseCommentBlocksInto(
+    lines: string[],
+    seenPaths: Set<string>,
+    root: BulletStructureItem[],
+): void {
+    let inBlock = false;
+    const stack: Array<{ item: BulletStructureItem; indent: number }> = [];
+
+    for (const line of lines) {
+        if (COMMENT_BLOCK_DELIM.test(line)) {
+            inBlock = !inBlock;
+            if (!inBlock) stack.length = 0; // reset per-block indentation context
+            continue;
+        }
+        if (!inBlock) continue;
+
+        const bulletMatch = /^(\s*)-\s*(.*)$/.exec(line);
+        if (!bulletMatch) continue;
+
+        const indent = (bulletMatch[1] ?? '').length;
+        const rest = (bulletMatch[2] ?? '').trim();
+        if (!rest) continue;
+
+        let item: BulletStructureItem;
+        const wikilinkMatch = /\[\[([^\]]+)\]\]/.exec(rest);
+        if (wikilinkMatch) {
+            const raw = wikilinkMatch[1] ?? '';
+            const path = extractLinkPath(raw);
+            if (!path || seenPaths.has(path)) continue;
+            seenPaths.add(path);
+            item = { type: 'link', path, alias: extractLinkAlias(raw), children: [] };
+        } else {
+            item = { type: 'virtual', label: rest, children: [] };
+        }
+
+        while (stack.length > 0 && (stack[stack.length - 1]?.indent ?? 0) >= indent) {
+            stack.pop();
+        }
+        if (stack.length === 0) {
+            root.push(item);
+        } else {
+            stack[stack.length - 1]?.item.children.push(item);
+        }
+        stack.push({ item, indent });
+    }
+}
+
+/**
+ * Builds a flat+hierarchical list of BulletStructureItems from document content.
+ * Comment-block source is parsed hierarchically; other sources are parsed flat.
+ */
+function collectBulletStructure(
     content: string,
     options: LinkSearchOptions,
-): Array<{ path: string; alias?: string }> {
-    const seen = new Set<string>();
-    const results: Array<{ path: string; alias?: string }> = [];
+): BulletStructureItem[] {
+    const seenPaths = new Set<string>();
+    const root: BulletStructureItem[] = [];
     const lines = content.split('\n');
 
-    const add = (raw: string) => {
-        const path = extractLinkPath(raw);
-        if (!path || seen.has(path)) return;
-        seen.add(path);
-        results.push({ path, alias: extractLinkAlias(raw) });
-    };
-
     if (options.sources.includes('comment-block')) {
-        let inBlock = false;
-        for (const line of lines) {
-            if (COMMENT_BLOCK_DELIM.test(line)) { inBlock = !inBlock; continue; }
-            if (!inBlock) continue;
-            const match = BULLET_WIKILINK.exec(line);
-            if (match) add(match[1] ?? '');
-        }
+        parseCommentBlocksInto(lines, seenPaths, root);
     }
+
+    const addFlat = (raw: string) => {
+        const path = extractLinkPath(raw);
+        if (!path || seenPaths.has(path)) return;
+        seenPaths.add(path);
+        root.push({ type: 'link', path, alias: extractLinkAlias(raw), children: [] });
+    };
 
     if (options.sources.includes('end-of-document')) {
         let i = lines.length - 1;
@@ -56,7 +111,7 @@ function collectBulletLinksWithAliases(
             const line = lines[i] ?? '';
             if (line.trim() === '') { i--; continue; }
             const match = BULLET_WIKILINK.exec(line);
-            if (match) { add(match[1] ?? ''); i--; }
+            if (match) { addFlat(match[1] ?? ''); i--; }
             else break;
         }
     }
@@ -77,11 +132,11 @@ function collectBulletLinksWithAliases(
             }
             if (!collecting) continue;
             const match = BULLET_WIKILINK.exec(line);
-            if (match) add(match[1] ?? '');
+            if (match) addFlat(match[1] ?? '');
         }
     }
 
-    return results;
+    return root;
 }
 
 function collectEndOfDocumentLinks(lines: string[]): string[] {
@@ -259,20 +314,40 @@ async function buildNode(
 
     const content = await app.vault.cachedRead(file);
 
-    for (const { path: linkPath, alias } of collectBulletLinksWithAliases(content, options)) {
-        const linkedFile = app.metadataCache.getFirstLinkpathDest(linkPath, file.path);
-        if (linkedFile instanceof TFile) {
-            const child = await buildNode(app, linkedFile, depth - 1, visited, options);
-            if (alias) child.alias = alias;
-            node.children.push(child);
-        }
-    }
+    node.children = await buildNodesFromStructure(
+        app, collectBulletStructure(content, options), file.path, depth, visited, options,
+    );
 
     return node;
 }
 
+async function buildNodesFromStructure(
+    app: App,
+    items: BulletStructureItem[],
+    filePath: string,
+    depth: number,
+    visited: Set<string>,
+    options: LinkSearchOptions,
+): Promise<OutlineNode[]> {
+    const result: OutlineNode[] = [];
+    for (const item of items) {
+        if (item.type === 'virtual') {
+            const children = await buildNodesFromStructure(app, item.children, filePath, depth, visited, options);
+            result.push({ file: '', name: item.label, virtual: true, children });
+        } else {
+            const linkedFile = app.metadataCache.getFirstLinkpathDest(item.path, filePath);
+            if (linkedFile instanceof TFile) {
+                const child = await buildNode(app, linkedFile, depth - 1, visited, options);
+                if (item.alias) child.alias = item.alias;
+                result.push(child);
+            }
+        }
+    }
+    return result;
+}
+
 export function collectTreePaths(node: OutlineNode, out: Set<string> = new Set()): Set<string> {
-    out.add(node.file);
+    if (node.file) out.add(node.file); // skip virtual nodes (empty file)
     for (const child of node.children) {
         collectTreePaths(child, out);
     }

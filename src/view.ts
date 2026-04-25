@@ -147,6 +147,34 @@ export class VaultOutlineView extends ItemView {
     private renderNode(parent: HTMLElement, node: OutlineNode, parentNode: OutlineNode | null, isRoot: boolean): void {
         const hasChildren = node.children.length > 0;
 
+        // ── Virtual grouping node ──────────────────────────────────────────────
+        if (node.virtual) {
+            const item = parent.createDiv({ cls: 'tree-item vault-outline-node vault-outline-virtual' });
+            const self = item.createDiv({ cls: 'tree-item-self' });
+
+            if (hasChildren) {
+                const icon = self.createDiv({ cls: 'tree-item-icon collapse-icon' });
+                icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8L12 17L21 8"/></svg>`;
+                const childrenContainer = item.createDiv({ cls: 'tree-item-children' });
+                // Pass parentNode (the real file ancestor) so children's context menu works correctly
+                for (const child of node.children) {
+                    this.renderNode(childrenContainer, child, parentNode, false);
+                }
+                this.registerDomEvent(icon, 'click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    item.classList.toggle('is-collapsed');
+                });
+            } else {
+                self.createDiv({ cls: 'tree-item-icon' });
+            }
+
+            self.createDiv({ cls: 'tree-item-inner vault-outline-virtual-label' }).setText(node.name);
+            return;
+        }
+
+        // ── Real file node ─────────────────────────────────────────────────────
+
         // Register this node so command palette commands can look it up
         this.nodeMap.set(node.file, node);
 
