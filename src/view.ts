@@ -1,5 +1,5 @@
-import { ItemView, Menu, Modal, TFile, WorkspaceLeaf } from 'obsidian';
-import { buildOutlineTree, collectTreePaths, insertSubnote, ensureIndexedFrontmatter, reorderSubnotes } from './graph';
+import { ItemView, Menu, Modal, Notice, TFile, WorkspaceLeaf } from 'obsidian';
+import { buildOutlineTree, collectTreePaths, insertSubnote, ensureIndexedFrontmatter, reorderSubnotes, removeSubnote } from './graph';
 import { VaultOutlineSettings } from './settings';
 import { OutlineNode } from './types';
 
@@ -159,6 +159,17 @@ export class VaultOutlineView extends ItemView {
             }
 
             if (!droppedBasename) return;
+
+            // Safety: block if the dropped note is already indexed (part of another map)
+            const droppedFile = this.app.metadataCache.getFirstLinkpathDest(droppedBasename, node.file);
+            if (droppedFile instanceof TFile) {
+                const droppedCache = this.app.metadataCache.getFileCache(droppedFile);
+                if (droppedCache?.frontmatter?.['indexed'] === true) {
+                    new Notice(`"${droppedBasename}" is already part of a map and cannot be added again.`);
+                    return;
+                }
+            }
+
             await insertSubnote(this.app, node, parentNode, droppedBasename, 'child');
         });
 
@@ -209,9 +220,21 @@ export class VaultOutlineView extends ItemView {
                 .setIcon('plus')
                 .onClick(() => this.app.workspace.openLinkText(node.file, '', true))
             );
+
             if (hasChildren) {
                 menu.addSeparator();
-                menu.addItem((item) => item
+                menu.addItem((menuItem) => menuItem
+                    .setTitle('Collapse')
+                    .setIcon('chevron-up')
+                    .onClick(() => item.classList.add('is-collapsed'))
+                );
+                menu.addItem((menuItem) => menuItem
+                    .setTitle('Expand')
+                    .setIcon('chevron-down')
+                    .onClick(() => item.classList.remove('is-collapsed'))
+                );
+                menu.addSeparator();
+                menu.addItem((menuItem) => menuItem
                     .setTitle('Rearrange subnotes')
                     .setIcon('list-ordered')
                     .onClick(() => {
@@ -221,6 +244,59 @@ export class VaultOutlineView extends ItemView {
                     })
                 );
             }
+
+            menu.addSeparator();
+
+            // Remove note: only available when the node has a parent
+            if (parentNode) {
+                menu.addItem((item) => item
+                    .setTitle('Remove note')
+                    .setIcon('trash')
+                    .onClick(async () => {
+                        await removeSubnote(this.app, parentNode, node.name, node.file);
+                        this.refresh();
+                    })
+                );
+            }
+
+            const nodeFile = this.app.vault.getAbstractFileByPath(node.file);
+            if (nodeFile instanceof TFile) {
+                const cache = this.app.metadataCache.getFileCache(nodeFile);
+
+                if (cache?.frontmatter?.['indexed'] !== true) {
+                    menu.addItem((item) => item
+                        .setTitle('Add indexed flag')
+                        .setIcon('check')
+                        .onClick(async () => {
+                            await this.app.fileManager.processFrontMatter(nodeFile, (fm) => {
+                                fm.indexed = true;
+                            });
+                        })
+                    );
+                }
+
+                const tags: string[] = cache?.frontmatter?.['tags'] ?? [];
+                const hasDefinicion = tags.some((t: string) =>
+                    t.toLowerCase() === 'definición' || t.toLowerCase() === 'definicion'
+                );
+                if (!hasDefinicion) {
+                    menu.addItem((item) => item
+                        .setTitle('Add tag: Definición')
+                        .setIcon('tag')
+                        .onClick(async () => {
+                            await this.app.fileManager.processFrontMatter(nodeFile, (fm) => {
+                                const existing: string[] = fm['tags'] ?? [];
+                                if (!existing.some((t: string) =>
+                                    t.toLowerCase() === 'definición' || t.toLowerCase() === 'definicion'
+                                )) {
+                                    fm['tags'] = [...existing, 'Definición'];
+                                }
+                            });
+                        })
+                    );
+                }
+            }
+
             menu.showAtMouseEvent(e);
         });
 

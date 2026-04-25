@@ -261,6 +261,87 @@ export async function insertSubnote(
 }
 
 /**
+ * Removes the wikilink pointing to childBasename from the parent file.
+ * Also removes any now-empty comment blocks left behind.
+ * Optionally strips `indexed: true` from the removed note's frontmatter.
+ */
+export async function removeSubnote(
+    app: App,
+    parentNode: OutlineNode,
+    childBasename: string,
+    childFilePath?: string,
+) {
+    const fileToModify = app.vault.getAbstractFileByPath(parentNode.file);
+    if (!(fileToModify instanceof TFile)) return;
+
+    await app.vault.process(fileToModify, (data) => {
+        const lines = data.split('\n');
+
+        // Remove lines that are bullet wikilinks to childBasename
+        const filtered = lines.filter(line => {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('-')) return true;
+            return !(trimmed.includes(`[[${childBasename}]]`) || trimmed.includes(`[[${childBasename}|`));
+        });
+
+        // Remove empty comment blocks: %% followed by nothing (or only whitespace lines) followed by %%
+        const result: string[] = [];
+        let i = 0;
+        while (i < filtered.length) {
+            const line = filtered[i] ?? '';
+            if (COMMENT_BLOCK_DELIM.test(line)) {
+                // Look ahead: collect lines until the closing %%
+                let j = i + 1;
+                while (j < filtered.length && !COMMENT_BLOCK_DELIM.test(filtered[j] ?? '')) {
+                    j++;
+                }
+                // Lines between the two %% markers
+                const interior = filtered.slice(i + 1, j);
+                const hasContent = interior.some(l => l.trim() !== '');
+                if (!hasContent) {
+                    // Block is empty — skip the opening %%, interior, and closing %%
+                    // Also eat a preceding blank line if present
+                    if (result.length > 0 && (result[result.length - 1] ?? '').trim() === '') {
+                        result.pop();
+                    }
+                    i = j + 1; // skip past closing %%
+                } else {
+                    // Non-empty block — keep it
+                    result.push(line);
+                    i++;
+                }
+            } else {
+                result.push(line);
+                i++;
+            }
+        }
+
+        return result.join('\n');
+    });
+
+    // Strip indexed: true from the removed note, cleaning up empty frontmatter
+    if (childFilePath) {
+        const childFile = app.vault.getAbstractFileByPath(childFilePath);
+        if (childFile instanceof TFile) {
+            try {
+                await app.fileManager.processFrontMatter(childFile, (fm) => {
+                    delete fm['indexed'];
+                });
+                // If frontmatter is now empty, processFrontMatter will leave an empty block.
+                // Remove it by rewriting the file directly.
+                const raw = await app.vault.read(childFile);
+                const emptyFrontmatter = /^---\r?\n---\r?\n?/;
+                if (emptyFrontmatter.test(raw)) {
+                    await app.vault.modify(childFile, raw.replace(emptyFrontmatter, ''));
+                }
+            } catch (_) {
+                // Fail silently
+            }
+        }
+    }
+}
+
+/**
  * Rewrites the wikilink order for direct children of a node inside the parent file.
  * newOrder is an array of child basenames in the desired sequence.
  */

@@ -61,6 +61,34 @@
 	display: none;
 }
 
+/* Position the guide line directly below the center of the collapse icon.
+   Self-row has padding-left: 6px and icon width: 18px → center at 15px. */
+.vault-outline-node > .tree-item-children {
+	margin-left: 15px;
+}
+
+/* Cover the guide line within the icon area so it doesn't show through
+   the transparent lower portion of the chevron SVG. */
+.vault-outline-node > .tree-item-self .collapse-icon {
+	position: relative;
+	z-index: 1;
+	background: var(--background-primary);
+}
+.vault-outline-node > .tree-item-self:hover .collapse-icon {
+	background: var(--background-modifier-hover);
+}
+.vault-outline-node > .tree-item-self.vault-outline-active .collapse-icon {
+	background: var(--background-modifier-active-hover);
+}
+
+/* Rotate the collapse chevron to point right when the branch is collapsed */
+.vault-outline-node .collapse-icon svg {
+	transition: transform 0.12s ease;
+}
+.vault-outline-node.is-collapsed > .tree-item-self .collapse-icon svg {
+	transform: rotate(-90deg);
+}
+
 /* Keep the icon area compact */
 .vault-outline-node .tree-item-icon {
 	width: 18px;
@@ -78,12 +106,12 @@
 	margin-left: 4px;
 	vertical-align: middle;
 	flex-shrink: 0;
-	opacity: 0.75;
+	opacity: 0.85;
 }
 
 .nav-file-title .vault-outline-indexed-icon svg {
-	width: 11px;
-	height: 11px;
+	width: 15px;
+	height: 15px;
 }
 
 .vault-outline-rearrange-list {
