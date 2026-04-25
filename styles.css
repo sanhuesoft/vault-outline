@@ -78,11 +78,46 @@
 	margin-left: 4px;
 	vertical-align: middle;
 	flex-shrink: 0;
+	opacity: 0.75;
 }
 
 .nav-file-title .vault-outline-indexed-icon svg {
-	width: 12px;
-	height: 12px;
+	width: 11px;
+	height: 11px;
+}
+
+.vault-outline-rearrange-list {
+	margin: 8px 0 12px;
+}
+
+.vault-outline-rearrange-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.vault-outline-rearrange-name {
+	flex: 1;
+}
+
+.vault-outline-rearrange-buttons {
+	display: flex;
+	gap: 4px;
+}
+
+.vault-outline-rearrange-buttons button {
+	padding: 2px 6px;
+	min-width: 26px;
+	cursor: pointer;
+}
+
+.vault-outline-rearrange-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+	margin-top: 12px;
 }
 
 /* Highlight the currently active note */

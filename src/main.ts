@@ -135,7 +135,7 @@ export default class VaultOutlinePlugin extends Plugin {
 
 			const iconEl = document.createElement('span');
 			iconEl.addClass('vault-outline-indexed-icon');
-			setIcon(iconEl, 'bookmark-check');
+			setIcon(iconEl, 'check');
 			titleEl.appendChild(iconEl);
 		}
 	}

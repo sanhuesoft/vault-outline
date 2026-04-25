@@ -143,12 +143,12 @@ export async function buildOutlineTree(
     rootFile: TFile,
     maxDepth: number,
     options: LinkSearchOptions,
-): Promise<OutlineNode> {
+): Promise<{ tree: OutlineNode; isMap: boolean }> {
     const visited = new Set<string>();
     const mapRoot = await findMapRoot(app, rootFile, options);
-    
+    const isMap = hasMapTag(app, mapRoot);
     const tree = await buildNode(app, mapRoot, maxDepth, visited, options);
-    return tree;
+    return { tree, isMap };
 }
 
 export async function ensureIndexedFrontmatter(app: App, filePaths: string[]): Promise<boolean> {
@@ -257,5 +257,56 @@ export async function insertSubnote(
             }
             return lines.join('\n');
         }
+    });
+}
+
+/**
+ * Rewrites the wikilink order for direct children of a node inside the parent file.
+ * newOrder is an array of child basenames in the desired sequence.
+ */
+export async function reorderSubnotes(
+    app: App,
+    parentNode: OutlineNode,
+    newOrder: string[]
+) {
+    const fileToModify = app.vault.getAbstractFileByPath(parentNode.file);
+    if (!(fileToModify instanceof TFile)) return;
+
+    await app.vault.process(fileToModify, (data) => {
+        const lines = data.split('\n');
+
+        // Locate the line for each child basename (first match wins)
+        const childLines = new Map<string, { idx: number; line: string }>();
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i] ?? '';
+            for (const name of newOrder) {
+                if (!childLines.has(name) &&
+                    (line.includes(`[[${name}]]`) || line.includes(`[[${name}|`))) {
+                    childLines.set(name, { idx: i, line });
+                    break;
+                }
+            }
+        }
+
+        if (childLines.size === 0) return data;
+
+        // Insertion point = position of the earliest matched line
+        const allIdxDesc = Array.from(childLines.values())
+            .map(v => v.idx)
+            .sort((a, b) => b - a);
+        const firstIdx = Math.min(...allIdxDesc);
+
+        // Remove all matched lines in descending order to preserve lower indices
+        for (const idx of allIdxDesc) {
+            lines.splice(idx, 1);
+        }
+
+        // Insert in new order at the original first position
+        const newLines = newOrder
+            .map(name => childLines.get(name)?.line)
+            .filter((l): l is string => l !== undefined);
+        lines.splice(firstIdx, 0, ...newLines);
+
+        return lines.join('\n');
     });
 }

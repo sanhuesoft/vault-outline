@@ -1,5 +1,5 @@
-import { ItemView, Menu, TFile, WorkspaceLeaf } from 'obsidian';
-import { buildOutlineTree, collectTreePaths, insertSubnote, ensureIndexedFrontmatter } from './graph';
+import { ItemView, Menu, Modal, TFile, WorkspaceLeaf } from 'obsidian';
+import { buildOutlineTree, collectTreePaths, insertSubnote, ensureIndexedFrontmatter, reorderSubnotes } from './graph';
 import { VaultOutlineSettings } from './settings';
 import { OutlineNode } from './types';
 
@@ -94,7 +94,7 @@ export class VaultOutlineView extends ItemView {
             headingName: this.settings.linkSearchHeading,
         };
 
-        buildOutlineTree(this.app, rootFile, this.settings.maxDepth, linkSearchOptions).then(async (tree) => {
+        buildOutlineTree(this.app, rootFile, this.settings.maxDepth, linkSearchOptions).then(async ({ tree, isMap }) => {
             if (this.currentFile?.path !== rootFile.path) return;
 
             this.treeFilePaths = collectTreePaths(tree);
@@ -105,10 +105,12 @@ export class VaultOutlineView extends ItemView {
             const root = container.createDiv({ cls: rootCls });
             this.renderNode(root, tree, null, true);
 
-            // Ensure indexed frontmatter is set; if any file was modified, re-render to show icons
-            const anyModified = await ensureIndexedFrontmatter(this.app, Array.from(this.treeFilePaths));
-            if (anyModified && this.currentFile?.path === rootFile.path) {
-                this.refresh();
+            // Only mark notes as indexed when the tree is rooted at a real #mapa note
+            if (isMap) {
+                const anyModified = await ensureIndexedFrontmatter(this.app, Array.from(this.treeFilePaths));
+                if (anyModified && this.currentFile?.path === rootFile.path) {
+                    this.refresh();
+                }
             }
         });
     }
@@ -143,7 +145,6 @@ export class VaultOutlineView extends ItemView {
             e.stopPropagation();
             self.style.background = '';
 
-            // Use Obsidian's internal drag state as primary source (most reliable)
             const dragManager = (this.app as any).dragManager;
             const draggable = dragManager?.draggable;
 
@@ -158,7 +159,6 @@ export class VaultOutlineView extends ItemView {
             }
 
             if (!droppedBasename) return;
-
             await insertSubnote(this.app, node, parentNode, droppedBasename, 'child');
         });
 
@@ -209,6 +209,18 @@ export class VaultOutlineView extends ItemView {
                 .setIcon('plus')
                 .onClick(() => this.app.workspace.openLinkText(node.file, '', true))
             );
+            if (hasChildren) {
+                menu.addSeparator();
+                menu.addItem((item) => item
+                    .setTitle('Rearrange subnotes')
+                    .setIcon('list-ordered')
+                    .onClick(() => {
+                        new RearrangeModal(this.app, node, async (newOrder) => {
+                            await reorderSubnotes(this.app, node, newOrder);
+                        }).open();
+                    })
+                );
+            }
             menu.showAtMouseEvent(e);
         });
 
@@ -218,5 +230,73 @@ export class VaultOutlineView extends ItemView {
                 this.app.workspace.openLinkText(node.file, '', false);
             }
         });
+    }
+}
+
+class RearrangeModal extends Modal {
+    private node: OutlineNode;
+    private items: string[];
+    private onSave: (newOrder: string[]) => Promise<void>;
+
+    constructor(app: import('obsidian').App, node: OutlineNode, onSave: (newOrder: string[]) => Promise<void>) {
+        super(app);
+        this.node = node;
+        this.items = node.children.map(c => c.name);
+        this.onSave = onSave;
+    }
+
+    onOpen() {
+        this.render();
+    }
+
+    private render() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.createEl('h3', { text: `Rearrange subnotes of "${this.node.name}"` });
+
+        const list = contentEl.createDiv({ cls: 'vault-outline-rearrange-list' });
+        this.items.forEach((name, idx) => {
+            const row = list.createDiv({ cls: 'vault-outline-rearrange-row' });
+            row.createSpan({ text: name, cls: 'vault-outline-rearrange-name' });
+            const btns = row.createDiv({ cls: 'vault-outline-rearrange-buttons' });
+
+            if (idx > 0) {
+                const up = btns.createEl('button', { text: '↑' });
+                up.addEventListener('click', () => {
+                    const prev = this.items[idx - 1];
+                    const curr = this.items[idx];
+                    if (prev !== undefined && curr !== undefined) {
+                        this.items[idx - 1] = curr;
+                        this.items[idx] = prev;
+                        this.render();
+                    }
+                });
+            }
+            if (idx < this.items.length - 1) {
+                const down = btns.createEl('button', { text: '↓' });
+                down.addEventListener('click', () => {
+                    const curr = this.items[idx];
+                    const next = this.items[idx + 1];
+                    if (curr !== undefined && next !== undefined) {
+                        this.items[idx] = next;
+                        this.items[idx + 1] = curr;
+                        this.render();
+                    }
+                });
+            }
+        });
+
+        const actions = contentEl.createDiv({ cls: 'vault-outline-rearrange-actions' });
+        const saveBtn = actions.createEl('button', { text: 'Save order', cls: 'mod-cta' });
+        saveBtn.addEventListener('click', async () => {
+            await this.onSave([...this.items]);
+            this.close();
+        });
+        actions.createEl('button', { text: 'Cancel' })
+            .addEventListener('click', () => this.close());
+    }
+
+    onClose() {
+        this.contentEl.empty();
     }
 }
