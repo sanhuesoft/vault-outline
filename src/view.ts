@@ -1,159 +1,222 @@
 import { ItemView, Menu, TFile, WorkspaceLeaf } from 'obsidian';
-import { buildOutlineTree, collectTreePaths } from './graph';
+import { buildOutlineTree, collectTreePaths, insertSubnote, ensureIndexedFrontmatter } from './graph';
 import { VaultOutlineSettings } from './settings';
 import { OutlineNode } from './types';
 
 export const VIEW_TYPE_VAULT_OUTLINE = 'vault-outline-view';
 
+function getDroppedFileName(e: DragEvent): string | null {
+    try {
+        const dndData = e.dataTransfer?.getData('application/x-dnd');
+        if (dndData) {
+            const parsed = JSON.parse(dndData);
+            if (parsed?.type === 'file' && parsed.files?.length > 0) {
+                const path = parsed.files[0] as string;
+                return path.split('/').pop()?.replace(/\.md$/, '') ?? null;
+            }
+        }
+    } catch (err) {}
+
+    const text = e.dataTransfer?.getData('text/plain');
+    if (text) {
+        const match = text.match(/\[\[([^\]]+)\]\]/);
+        if (match) return match[1]?.split('|')[0] ?? null;
+        // Strip vault-relative path prefix and .md extension
+        const base = text.trim().split('/').pop() ?? text.trim();
+        return base.replace(/\.md$/, '') || null;
+    }
+    return null;
+}
+
 export class VaultOutlineView extends ItemView {
-	private settings: VaultOutlineSettings;
-	public currentFile: TFile | null = null;
-	private treeFilePaths: Set<string> = new Set();
-	private activeFilePath: string | null = null;
+    private settings: VaultOutlineSettings;
+    public currentFile: TFile | null = null;
+    private treeFilePaths: Set<string> = new Set();
+    private activeFilePath: string | null = null;
 
-	constructor(leaf: WorkspaceLeaf, settings: VaultOutlineSettings) {
-		super(leaf);
-		this.settings = settings;
-	}
+    constructor(leaf: WorkspaceLeaf, settings: VaultOutlineSettings) {
+        super(leaf);
+        this.settings = settings;
+    }
 
-	getViewType(): string {
-		return VIEW_TYPE_VAULT_OUTLINE;
-	}
+    getViewType(): string {
+        return VIEW_TYPE_VAULT_OUTLINE;
+    }
 
-	getDisplayText(): string {
-		return 'Vault outline';
-	}
+    getDisplayText(): string {
+        return 'Vault outline';
+    }
 
-	getIcon(): string {
-		return 'list-tree';
-	}
+    getIcon(): string {
+        return 'list-tree';
+    }
 
-	async onOpen(): Promise<void> {
-		this.refresh();
-	}
+    async onOpen(): Promise<void> {
+        this.refresh();
+    }
 
-	async onClose(): Promise<void> {
-		// Nothing to clean up
-	}
+    async onClose(): Promise<void> {
+        // Nothing to clean up
+    }
 
-	/** Returns true if the given file is part of the currently displayed tree. */
-	isInCurrentTree(file: TFile): boolean {
-		return this.treeFilePaths.has(file.path);
-	}
+    /** Returns true if the given file is part of the currently displayed tree. */
+    isInCurrentTree(file: TFile): boolean {
+        return this.treeFilePaths.has(file.path);
+    }
 
-	setFile(file: TFile | null): void {
-		this.currentFile = file;
-		this.activeFilePath = file?.path ?? null;
-		this.refresh();
-	}
+    setFile(file: TFile | null): void {
+        this.currentFile = file;
+        this.activeFilePath = file?.path ?? null;
+        this.refresh();
+    }
 
-	setActiveFile(path: string): void {
-		this.activeFilePath = path;
-		this.refresh();
-	}
+    setActiveFile(path: string): void {
+        this.activeFilePath = path;
+        this.refresh();
+    }
 
-	refresh(): void {
-		const content = this.containerEl.children[1] as HTMLElement;
-		content.empty();
+    refresh(): void {
+        const content = this.containerEl.children[1] as HTMLElement;
+        content.empty();
 
-		if (!this.currentFile) {
-			this.treeFilePaths = new Set();
-			content.createEl('p', {
-				text: 'Open a note to see its outline.',
-				cls: 'vault-outline-empty',
-			});
-			return;
-		}
+        if (!this.currentFile) {
+            this.treeFilePaths = new Set();
+            content.createEl('p', {
+                text: 'Open a note to see its outline.',
+                cls: 'vault-outline-empty',
+            });
+            return;
+        }
 
-		const rootFile = this.currentFile;
-		const linkSearchOptions = {
-			sources: this.settings.linkSources,
-			headingName: this.settings.linkSearchHeading,
-		};
-		buildOutlineTree(this.app, rootFile, this.settings.maxDepth, linkSearchOptions).then((tree) => {
-			if (this.currentFile?.path !== rootFile.path) return;
+        const rootFile = this.currentFile;
+        const linkSearchOptions = {
+            sources: this.settings.linkSources,
+            headingName: this.settings.linkSearchHeading,
+        };
 
-			this.treeFilePaths = collectTreePaths(tree);
+        buildOutlineTree(this.app, rootFile, this.settings.maxDepth, linkSearchOptions).then(async (tree) => {
+            if (this.currentFile?.path !== rootFile.path) return;
 
-			const container = this.containerEl.children[1] as HTMLElement;
-			container.empty();
-			const rootCls = 'vault-outline-root' + (this.settings.wrapText ? ' vault-outline-wrap' : '');
-			const root = container.createDiv({ cls: rootCls });
-			this.renderNode(root, tree, true);
-		});
-	}
+            this.treeFilePaths = collectTreePaths(tree);
+            const container = this.containerEl.children[1] as HTMLElement;
+            container.empty();
 
-	private renderNode(parent: HTMLElement, node: OutlineNode, isRoot: boolean): void {
-		const hasChildren = node.children.length > 0;
+            const rootCls = 'vault-outline-root' + (this.settings.wrapText ? ' vault-outline-wrap' : '');
+            const root = container.createDiv({ cls: rootCls });
+            this.renderNode(root, tree, null, true);
 
-		// Outer container — mirrors how Obsidian's own tree works
-		const item = parent.createDiv({ cls: 'tree-item vault-outline-node' });
-		if (isRoot) item.addClass('vault-outline-node-root');
+            // Ensure indexed frontmatter is set; if any file was modified, re-render to show icons
+            const anyModified = await ensureIndexedFrontmatter(this.app, Array.from(this.treeFilePaths));
+            if (anyModified && this.currentFile?.path === rootFile.path) {
+                this.refresh();
+            }
+        });
+    }
 
-		// Self row (the clickable / toggle row)
-		const self = item.createDiv({ cls: 'tree-item-self' });
-		self.setAttribute('tabindex', '0');
+    private renderNode(parent: HTMLElement, node: OutlineNode, parentNode: OutlineNode | null, isRoot: boolean): void {
+        const hasChildren = node.children.length > 0;
 
-		let childrenContainer: HTMLElement | null = null;
+        // Outer container
+        const item = parent.createDiv({ cls: 'tree-item vault-outline-node' });
+        if (isRoot) item.addClass('vault-outline-node-root');
 
-		if (hasChildren) {
-			// Collapse arrow — Obsidian styles this via .tree-item-icon
-			const icon = self.createDiv({ cls: 'tree-item-icon collapse-icon' });
-			icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8L12 17L21 8"/></svg>`;
+        // Self row (the clickable / toggle row)
+        const self = item.createDiv({ cls: 'tree-item-self' });
+        self.setAttribute('tabindex', '0');
 
-			childrenContainer = item.createDiv({ cls: 'tree-item-children' });
-			for (const child of node.children) {
-				this.renderNode(childrenContainer, child, false);
-			}
+        // Drag & Drop event bindings
+        self.setAttribute('draggable', 'true');
 
-			this.registerDomEvent(icon, 'click', (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				item.classList.toggle('is-collapsed');
-			});
-		} else {
-			// placeholder to align with icons
-			self.createDiv({ cls: 'tree-item-icon' });
-		}
+        this.registerDomEvent(self, 'dragover', (e: DragEvent) => {
+            e.preventDefault();
+            if (!e.dataTransfer) return;
+            e.dataTransfer.dropEffect = 'copy';
+            self.style.background = 'var(--background-modifier-hover)';
+        });
 
-		// The note name (not an anchor element so it doesn't get link styling)
-		const isActive = node.file === this.activeFilePath;
-		const text = self.createDiv({ cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : '') });
-		text.setText(node.name);
-		text.setAttribute('aria-label', node.file);
-		if (isActive) self.addClass('vault-outline-active');
+        this.registerDomEvent(self, 'dragleave', (e: DragEvent) => {
+            self.style.background = '';
+        });
 
-		// Clicking anywhere in the row (except the icon) opens the note in the current tab
-		this.registerDomEvent(self, 'click', (e) => {
-			if ((e.target as HTMLElement).closest('.tree-item-icon')) return;
-			this.app.workspace.openLinkText(node.file, '', false);
-		});
+        this.registerDomEvent(self, 'drop', async (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            self.style.background = '';
 
-		// Right-click context menu
-		this.registerDomEvent(self, 'contextmenu', (e: MouseEvent) => {
-			e.preventDefault();
-			const menu = new Menu();
-			menu.addItem((item) =>
-				item
-					.setTitle('Open in current tab')
-					.setIcon('arrow-right')
-					.onClick(() => this.app.workspace.openLinkText(node.file, '', false))
-			);
-			menu.addItem((item) =>
-				item
-					.setTitle('Open in new tab')
-					.setIcon('plus')
-					.onClick(() => this.app.workspace.openLinkText(node.file, '', true))
-			);
-			menu.showAtMouseEvent(e);
-		});
+            // Use Obsidian's internal drag state as primary source (most reliable)
+            const dragManager = (this.app as any).dragManager;
+            const draggable = dragManager?.draggable;
 
-		// Keyboard activation (Enter / Space)
-		this.registerDomEvent(self, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.app.workspace.openLinkText(node.file, '', false);
-			}
-		});
-	}
+            let droppedBasename: string | null = null;
+            if (draggable?.type === 'file' && draggable.file instanceof TFile) {
+                droppedBasename = draggable.file.basename;
+            } else if (draggable?.type === 'files' && Array.isArray(draggable.files)) {
+                const first = draggable.files[0];
+                if (first instanceof TFile) droppedBasename = first.basename;
+            } else {
+                droppedBasename = getDroppedFileName(e);
+            }
+
+            if (!droppedBasename) return;
+
+            await insertSubnote(this.app, node, parentNode, droppedBasename, 'child');
+        });
+
+        let childrenContainer: HTMLElement | null = null;
+        if (hasChildren) {
+            const icon = self.createDiv({ cls: 'tree-item-icon collapse-icon' });
+            icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8L12 17L21 8"/></svg>`;
+
+            childrenContainer = item.createDiv({ cls: 'tree-item-children' });
+            for (const child of node.children) {
+                this.renderNode(childrenContainer, child, node, false);
+            }
+
+            this.registerDomEvent(icon, 'click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                item.classList.toggle('is-collapsed');
+            });
+        } else {
+            self.createDiv({ cls: 'tree-item-icon' });
+        }
+
+
+        const isActive = node.file === this.activeFilePath;
+        const text = self.createDiv({
+            cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : '')
+        });
+        text.setText(node.name);
+        text.setAttribute('aria-label', node.file);
+
+        if (isActive) self.addClass('vault-outline-active');
+
+        this.registerDomEvent(self, 'click', (e) => {
+            if ((e.target as HTMLElement).closest('.tree-item-icon')) return;
+            this.app.workspace.openLinkText(node.file, '', false);
+        });
+
+        this.registerDomEvent(self, 'contextmenu', (e: MouseEvent) => {
+            e.preventDefault();
+            const menu = new Menu();
+            menu.addItem((item) => item
+                .setTitle('Open in current tab')
+                .setIcon('arrow-right')
+                .onClick(() => this.app.workspace.openLinkText(node.file, '', false))
+            );
+            menu.addItem((item) => item
+                .setTitle('Open in new tab')
+                .setIcon('plus')
+                .onClick(() => this.app.workspace.openLinkText(node.file, '', true))
+            );
+            menu.showAtMouseEvent(e);
+        });
+
+        this.registerDomEvent(self, 'keydown', (e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.app.workspace.openLinkText(node.file, '', false);
+            }
+        });
+    }
 }

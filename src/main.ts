@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
 import { DEFAULT_SETTINGS, VaultOutlineSettings, VaultOutlineSettingTab } from './settings';
 import { VaultOutlineView, VIEW_TYPE_VAULT_OUTLINE } from './view';
 
@@ -39,11 +39,13 @@ export default class VaultOutlinePlugin extends Plugin {
 				if (view && view.isInCurrentTree(file)) {
 					view.refresh();
 				}
+				this.decorateFileExplorer();
 			})
 		);
 
 		this.app.workspace.onLayoutReady(() => {
 			this.activateView();
+			this.decorateFileExplorer();
 		});
 	}
 
@@ -110,6 +112,32 @@ export default class VaultOutlinePlugin extends Plugin {
 
 	refreshOutlineView(): void {
 		this.getOutlineView()?.refresh();
+	}
+
+	private decorateFileExplorer(): void {
+		const explorerLeaf = this.app.workspace.getLeavesOfType('file-explorer')[0];
+		if (!explorerLeaf) return;
+		const explorerEl = explorerLeaf.view.containerEl;
+
+		// Remove all existing decorations to avoid duplicates
+		explorerEl.querySelectorAll('.vault-outline-indexed-icon').forEach(el => el.remove());
+
+		// Re-add decorations for every indexed file
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			const cache = this.app.metadataCache.getFileCache(file);
+			if (cache?.frontmatter?.['indexed'] !== true) continue;
+
+			// Find the native file title element via the stable data-path attribute
+			const titleEl = explorerEl.querySelector(
+				`.nav-file-title[data-path="${file.path.replace(/"/g, '\\"')}"]`
+			);
+			if (!titleEl) continue;
+
+			const iconEl = document.createElement('span');
+			iconEl.addClass('vault-outline-indexed-icon');
+			setIcon(iconEl, 'bookmark-check');
+			titleEl.appendChild(iconEl);
+		}
 	}
 
 	private getOutlineView(): VaultOutlineView | null {

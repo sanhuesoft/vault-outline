@@ -70,6 +70,21 @@
 	color: var(--text-muted);
 }
 
+/* Bookmark icon shown in the native file explorer for indexed notes */
+.nav-file-title .vault-outline-indexed-icon {
+	display: inline-flex;
+	align-items: center;
+	color: var(--text-accent);
+	margin-left: 4px;
+	vertical-align: middle;
+	flex-shrink: 0;
+}
+
+.nav-file-title .vault-outline-indexed-icon svg {
+	width: 12px;
+	height: 12px;
+}
+
 /* Highlight the currently active note */
 .vault-outline-node > .tree-item-self.vault-outline-active {
 	background-color: var(--background-modifier-active-hover);
