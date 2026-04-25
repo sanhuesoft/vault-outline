@@ -34,6 +34,8 @@ export class VaultOutlineView extends ItemView {
     private treeFilePaths: Set<string> = new Set();
     public nodeMap: Map<string, OutlineNode> = new Map();
     private activeFilePath: string | null = null;
+    private draggedNode: OutlineNode | null = null;
+    private draggedParent: OutlineNode | null = null;
 
     constructor(leaf: WorkspaceLeaf, settings: VaultOutlineSettings) {
         super(leaf);
@@ -134,10 +136,30 @@ export class VaultOutlineView extends ItemView {
         // Drag & Drop event bindings
         self.setAttribute('draggable', 'true');
 
+        this.registerDomEvent(self, 'dragstart', (e: DragEvent) => {
+            if (isRoot || !parentNode) {
+                e.preventDefault();
+                return;
+            }
+            this.draggedNode = node;
+            this.draggedParent = parentNode;
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', node.name);
+            }
+            self.style.opacity = '0.5';
+        });
+
+        this.registerDomEvent(self, 'dragend', () => {
+            self.style.opacity = '';
+            this.draggedNode = null;
+            this.draggedParent = null;
+        });
+
         this.registerDomEvent(self, 'dragover', (e: DragEvent) => {
             e.preventDefault();
             if (!e.dataTransfer) return;
-            e.dataTransfer.dropEffect = 'copy';
+            e.dataTransfer.dropEffect = this.draggedNode ? 'move' : 'copy';
             self.style.background = 'var(--background-modifier-hover)';
         });
 
@@ -150,6 +172,25 @@ export class VaultOutlineView extends ItemView {
             e.stopPropagation();
             self.style.background = '';
 
+            // Internal tree drag: move a node to a new parent
+            if (this.draggedNode) {
+                const dragged = this.draggedNode;
+                const draggedParent = this.draggedParent;
+                this.draggedNode = null;
+                this.draggedParent = null;
+
+                if (!draggedParent) return;
+                if (dragged.file === node.file) return;
+                if (this.isDescendantOf(node, dragged)) return;
+                if (draggedParent.file === node.file) return;
+
+                await removeSubnote(this.app, draggedParent, dragged.name);
+                await insertSubnote(this.app, node, parentNode, dragged.name, 'child');
+                this.refresh();
+                return;
+            }
+
+            // External file drop
             const dragManager = (this.app as any).dragManager;
             const draggable = dragManager?.draggable;
 
@@ -311,6 +352,14 @@ export class VaultOutlineView extends ItemView {
                 this.app.workspace.openLinkText(node.file, '', false);
             }
         });
+    }
+
+    private isDescendantOf(potentialDescendant: OutlineNode, ancestor: OutlineNode): boolean {
+        for (const child of ancestor.children) {
+            if (child.file === potentialDescendant.file) return true;
+            if (this.isDescendantOf(potentialDescendant, child)) return true;
+        }
+        return false;
     }
 }
 

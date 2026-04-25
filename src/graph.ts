@@ -221,42 +221,32 @@ export async function insertSubnote(
     droppedName: string,
     position: 'before' | 'after' | 'child'
 ) {
-    let fileToModifyPath = position === 'child' ? targetNode.file : parentNode?.file;
-    if (!fileToModifyPath) fileToModifyPath = targetNode.file; // Fallback to modifying self as child if no parent
-
+    const fileToModifyPath = targetNode.file;
     const fileToModify = app.vault.getAbstractFileByPath(fileToModifyPath);
     if (!(fileToModify instanceof TFile)) return;
 
     await app.vault.process(fileToModify, (data) => {
-        if (position === 'child' || !parentNode) {
-            const commentBlockRegex = /%%\n([\s\S]*?)\n%%/;
-            if (commentBlockRegex.test(data)) {
-                // Insert inside existing comment block
-                return data.replace(commentBlockRegex, `%%\n$1\n- [[${droppedName}]]\n%%`);
-            } else {
-                // Append comment block at the end of file
-                return data.trimEnd() + `\n\n%%\n- [[${droppedName}]]\n%%`;
-            }
-        } else {
-            // Find the target node reference inside the parent document
-            const lines = data.split('\n');
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i] ?? '';
-                if (line.includes(`[[${targetNode.name}]]`) || line.includes(`[[${targetNode.name}|`)) {
-                    const bulletMatch = line.match(/^(\s*[-*]\s+)/);
-                    const prefix = bulletMatch ? bulletMatch[1] ?? '- ' : '- ';
-                    const newEntry = `${prefix}[[${droppedName}]]`;
+        const lines = data.split('\n');
 
-                    if (position === 'before') {
-                        lines.splice(i, 0, newEntry);
-                    } else {
-                        lines.splice(i + 1, 0, newEntry);
-                    }
-                    break;
-                }
+        // Find the last %% line — it is the closing delimiter of the last comment block.
+        // Scanning from the end is robust: even if there are multiple blocks, we always
+        // append to the very last one.
+        let lastDelimIdx = -1;
+        for (let i = lines.length - 1; i >= 0; i--) {
+            if (COMMENT_BLOCK_DELIM.test(lines[i] ?? '')) {
+                lastDelimIdx = i;
+                break;
             }
+        }
+
+        if (lastDelimIdx >= 0) {
+            // Insert the new entry just before the closing %%
+            lines.splice(lastDelimIdx, 0, `- [[${droppedName}]]`);
             return lines.join('\n');
         }
+
+        // No comment block found — create one at the end of the file
+        return data.replace(/\s+$/, '') + `\n\n%%\n- [[${droppedName}]]\n%%`;
     });
 }
 
@@ -306,9 +296,11 @@ export async function removeSubnote(
                     }
                     i = j + 1; // skip past closing %%
                 } else {
-                    // Non-empty block — keep it
-                    result.push(line);
-                    i++;
+                    // Non-empty block — preserve the entire block at once, including closing %%
+                    result.push(line); // opening %%
+                    for (const innerLine of interior) result.push(innerLine);
+                    if (j < filtered.length) result.push(filtered[j] ?? ''); // closing %%
+                    i = j + 1; // advance past the closing %%
                 }
             } else {
                 result.push(line);
