@@ -243,7 +243,7 @@ export class VaultOutlineView extends ItemView {
         const text = self.createDiv({
             cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : '')
         });
-        text.setText(node.name);
+        text.setText(node.alias ?? node.name);
         text.setAttribute('aria-label', node.file);
 
         if (isActive) self.addClass('vault-outline-active');

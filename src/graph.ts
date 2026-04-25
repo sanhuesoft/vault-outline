@@ -17,6 +17,73 @@ function extractLinkPath(raw: string): string {
     return (raw.split('#')[0] ?? '').split('|')[0]?.trim() ?? '';
 }
 
+function extractLinkAlias(raw: string): string | undefined {
+    const pipeIdx = raw.indexOf('|');
+    if (pipeIdx === -1) return undefined;
+    const alias = raw.slice(pipeIdx + 1).trim();
+    return alias.length > 0 ? alias : undefined;
+}
+
+function collectBulletLinksWithAliases(
+    content: string,
+    options: LinkSearchOptions,
+): Array<{ path: string; alias?: string }> {
+    const seen = new Set<string>();
+    const results: Array<{ path: string; alias?: string }> = [];
+    const lines = content.split('\n');
+
+    const add = (raw: string) => {
+        const path = extractLinkPath(raw);
+        if (!path || seen.has(path)) return;
+        seen.add(path);
+        results.push({ path, alias: extractLinkAlias(raw) });
+    };
+
+    if (options.sources.includes('comment-block')) {
+        let inBlock = false;
+        for (const line of lines) {
+            if (COMMENT_BLOCK_DELIM.test(line)) { inBlock = !inBlock; continue; }
+            if (!inBlock) continue;
+            const match = BULLET_WIKILINK.exec(line);
+            if (match) add(match[1] ?? '');
+        }
+    }
+
+    if (options.sources.includes('end-of-document')) {
+        let i = lines.length - 1;
+        while (i >= 0 && (lines[i] ?? '').trim() === '') i--;
+        while (i >= 0) {
+            const line = lines[i] ?? '';
+            if (line.trim() === '') { i--; continue; }
+            const match = BULLET_WIKILINK.exec(line);
+            if (match) { add(match[1] ?? ''); i--; }
+            else break;
+        }
+    }
+
+    if (options.sources.includes('under-heading')) {
+        const targetText = options.headingName.toLowerCase();
+        let collecting = false;
+        let headingLevel = 0;
+        for (const line of lines) {
+            const headingMatch = HEADING_LINE.exec(line);
+            if (headingMatch) {
+                const level = (headingMatch[1] ?? '').length;
+                const text = (headingMatch[2] ?? '').trim().toLowerCase();
+                if (!collecting) {
+                    if (text === targetText) { collecting = true; headingLevel = level; }
+                } else if (level <= headingLevel) break;
+                continue;
+            }
+            if (!collecting) continue;
+            const match = BULLET_WIKILINK.exec(line);
+            if (match) add(match[1] ?? '');
+        }
+    }
+
+    return results;
+}
+
 function collectEndOfDocumentLinks(lines: string[]): string[] {
     const paths: string[] = [];
     let i = lines.length - 1;
@@ -191,15 +258,13 @@ async function buildNode(
     visited.add(file.path);
 
     const content = await app.vault.cachedRead(file);
-    const seen = new Set<string>();
 
-    for (const linkPath of collectBulletLinkPaths(content, options)) {
-        if (seen.has(linkPath)) continue;
-        seen.add(linkPath);
-
+    for (const { path: linkPath, alias } of collectBulletLinksWithAliases(content, options)) {
         const linkedFile = app.metadataCache.getFirstLinkpathDest(linkPath, file.path);
         if (linkedFile instanceof TFile) {
-            node.children.push(await buildNode(app, linkedFile, depth - 1, visited, options));
+            const child = await buildNode(app, linkedFile, depth - 1, visited, options);
+            if (alias) child.alias = alias;
+            node.children.push(child);
         }
     }
 
