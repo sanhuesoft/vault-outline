@@ -1,5 +1,13 @@
 /* Vault Outline – minimal overrides on top of Obsidian's native tree-item styles */
 
+.vault-outline-dragging {
+	opacity: 0.5;
+}
+
+.vault-outline-drag-over {
+	background: var(--background-modifier-hover);
+}
+
 .vault-outline-empty {
 	padding: 12px;
 	color: var(--text-muted);

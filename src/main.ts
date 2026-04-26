@@ -15,12 +15,12 @@ export default class VaultOutlinePlugin extends Plugin {
 		);
 
 		this.addRibbonIcon('list-tree', 'Vault outline', () => {
-			this.activateView();
+			void this.activateView();
 		});
 
 		this.addCommand({
-			id: 'open-vault-outline',
-			name: 'Open vault outline',
+			id: 'open',
+			name: 'Open',
 			callback: () => this.activateView(),
 		});
 
@@ -38,13 +38,13 @@ export default class VaultOutlinePlugin extends Plugin {
 					new Notice(`"${file.basename}" already has the indexed flag.`);
 					return;
 				}
-				await this.app.fileManager.processFrontMatter(file, (fm) => { fm.indexed = true; });
+				await this.app.fileManager.processFrontMatter(file, (fm) => { (fm as Record<string, unknown>)['indexed'] = true; });
 			},
 		});
 
 		this.addCommand({
 			id: 'add-definicion-tag',
-			name: 'Add tag: Definición to active note',
+			name: 'Add tag: definición to active note',
 			callback: async () => {
 				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
 				if (!file) {
@@ -52,7 +52,7 @@ export default class VaultOutlinePlugin extends Plugin {
 					return;
 				}
 				const cache = this.app.metadataCache.getFileCache(file);
-				const tags: string[] = cache?.frontmatter?.['tags'] ?? [];
+				const tags: string[] = (cache?.frontmatter?.['tags'] as string[] | undefined) ?? [];
 				const already = tags.some((t: string) =>
 					t.toLowerCase() === 'definición' || t.toLowerCase() === 'definicion'
 				);
@@ -61,8 +61,9 @@ export default class VaultOutlinePlugin extends Plugin {
 					return;
 				}
 				await this.app.fileManager.processFrontMatter(file, (fm) => {
-					const existing: string[] = fm['tags'] ?? [];
-					fm['tags'] = [...existing, 'Definición'];
+					const fmRecord = fm as Record<string, unknown>;
+					const existing: string[] = (fmRecord['tags'] as string[] | undefined) ?? [];
+					fmRecord['tags'] = [...existing, 'Definición'];
 				});
 			},
 		});
@@ -110,13 +111,13 @@ export default class VaultOutlinePlugin extends Plugin {
 		);
 
 		this.app.workspace.onLayoutReady(() => {
-			this.activateView();
+			void this.activateView();
 			this.decorateFileExplorer();
 		});
 	}
 
-	async onunload() {
-		this.app.workspace.detachLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
+	onunload() {
+		// Do not detach leaves on unload — preserves user-defined panel position.
 	}
 
 	async loadSettings() {
@@ -141,7 +142,7 @@ export default class VaultOutlinePlugin extends Plugin {
 		}
 
 		if (leaf) {
-			workspace.revealLeaf(leaf);
+			await workspace.revealLeaf(leaf);
 		}
 
 		this.updateView();

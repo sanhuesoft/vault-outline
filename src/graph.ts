@@ -282,10 +282,10 @@ export async function ensureIndexedFrontmatter(app: App, filePaths: string[]): P
             if (cache?.frontmatter?.['indexed'] !== true) {
                 try {
                     await app.fileManager.processFrontMatter(file, (fm) => {
-                        fm.indexed = true;
+                        (fm as Record<string, unknown>)['indexed'] = true;
                     });
                     modified = true;
-                } catch (e) {
+                } catch {
                     // Fail silently to avoid interrupting the flow
                 }
             }
@@ -457,7 +457,7 @@ export async function removeSubnote(
         if (childFile instanceof TFile) {
             try {
                 await app.fileManager.processFrontMatter(childFile, (fm) => {
-                    delete fm['indexed'];
+                    delete (fm as Record<string, unknown>)['indexed'];
                 });
                 // If frontmatter is now empty, processFrontMatter will leave an empty block.
                 // Remove it by rewriting the file directly.
@@ -466,7 +466,7 @@ export async function removeSubnote(
                 if (emptyFrontmatter.test(raw)) {
                     await app.vault.modify(childFile, raw.replace(emptyFrontmatter, ''));
                 }
-            } catch (_) {
+            } catch {
                 // Fail silently
             }
         }

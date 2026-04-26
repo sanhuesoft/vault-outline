@@ -9,13 +9,15 @@ function getDroppedFileName(e: DragEvent): string | null {
     try {
         const dndData = e.dataTransfer?.getData('application/x-dnd');
         if (dndData) {
-            const parsed = JSON.parse(dndData);
-            if (parsed?.type === 'file' && parsed.files?.length > 0) {
+            const parsed = JSON.parse(dndData) as { type?: string; files?: string[] };
+            if (parsed.type === 'file' && parsed.files && parsed.files.length > 0) {
                 const path = parsed.files[0] as string;
                 return path.split('/').pop()?.replace(/\.md$/, '') ?? null;
             }
         }
-    } catch (err) {}
+    } catch {
+        // ignore parse errors
+    }
 
     const text = e.dataTransfer?.getData('text/plain');
     if (text) {
@@ -26,6 +28,10 @@ function getDroppedFileName(e: DragEvent): string | null {
         return base.replace(/\.md$/, '') || null;
     }
     return null;
+}
+
+interface AppDragManager {
+    draggable?: { type?: string; file?: TFile; files?: TFile[] };
 }
 
 export class VaultOutlineView extends ItemView {
@@ -90,7 +96,7 @@ export class VaultOutlineView extends ItemView {
             sources: this.settings.linkSources,
             headingName: this.settings.linkSearchHeading,
         };
-        buildOutlineTree(this.app, file, this.settings.maxDepth, linkSearchOptions).then(({ tree, isMap }) => {
+        void buildOutlineTree(this.app, file, this.settings.maxDepth, linkSearchOptions).then(({ tree, isMap }) => {
             if (!isMap && tree.children.length === 0) return;
             this.currentFile = file;
             this.activeFilePath = file.path;
@@ -122,7 +128,7 @@ export class VaultOutlineView extends ItemView {
             headingName: this.settings.linkSearchHeading,
         };
 
-        buildOutlineTree(this.app, rootFile, this.settings.maxDepth, linkSearchOptions).then(async ({ tree, isMap }) => {
+        void buildOutlineTree(this.app, rootFile, this.settings.maxDepth, linkSearchOptions).then(async ({ tree, isMap }) => {
             if (this.currentFile?.path !== rootFile.path) return;
 
             this.treeFilePaths = collectTreePaths(tree);
@@ -154,7 +160,7 @@ export class VaultOutlineView extends ItemView {
 
             if (hasChildren) {
                 const icon = self.createDiv({ cls: 'tree-item-icon collapse-icon' });
-                icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8L12 17L21 8"/></svg>`;
+                icon.createSvg('svg', { attr: { xmlns: 'http://www.w3.org/2000/svg', width: '12', height: '12', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } }).createSvg('path', { attr: { d: 'M3 8L12 17L21 8' } });
                 const childrenContainer = item.createDiv({ cls: 'tree-item-children' });
                 // Pass parentNode (the real file ancestor) so children's context menu works correctly
                 for (const child of node.children) {
@@ -200,11 +206,11 @@ export class VaultOutlineView extends ItemView {
                 e.dataTransfer.effectAllowed = 'move';
                 e.dataTransfer.setData('text/plain', node.name);
             }
-            self.style.opacity = '0.5';
+            self.addClass('vault-outline-dragging');
         });
 
         this.registerDomEvent(self, 'dragend', () => {
-            self.style.opacity = '';
+            self.removeClass('vault-outline-dragging');
             this.draggedNode = null;
             this.draggedParent = null;
         });
@@ -213,17 +219,17 @@ export class VaultOutlineView extends ItemView {
             e.preventDefault();
             if (!e.dataTransfer) return;
             e.dataTransfer.dropEffect = this.draggedNode ? 'move' : 'copy';
-            self.style.background = 'var(--background-modifier-hover)';
+            self.addClass('vault-outline-drag-over');
         });
 
         this.registerDomEvent(self, 'dragleave', (e: DragEvent) => {
-            self.style.background = '';
+            self.removeClass('vault-outline-drag-over');
         });
 
         this.registerDomEvent(self, 'drop', async (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            self.style.background = '';
+            self.removeClass('vault-outline-drag-over');
 
             // Internal tree drag: move a node to a new parent
             if (this.draggedNode) {
@@ -244,7 +250,7 @@ export class VaultOutlineView extends ItemView {
             }
 
             // External file drop
-            const dragManager = (this.app as any).dragManager;
+            const dragManager = (this.app as unknown as { dragManager?: AppDragManager }).dragManager;
             const draggable = dragManager?.draggable;
 
             let droppedBasename: string | null = null;
@@ -275,7 +281,7 @@ export class VaultOutlineView extends ItemView {
         let childrenContainer: HTMLElement | null = null;
         if (hasChildren) {
             const icon = self.createDiv({ cls: 'tree-item-icon collapse-icon' });
-            icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8L12 17L21 8"/></svg>`;
+            icon.createSvg('svg', { attr: { xmlns: 'http://www.w3.org/2000/svg', width: '12', height: '12', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } }).createSvg('path', { attr: { d: 'M3 8L12 17L21 8' } });
 
             childrenContainer = item.createDiv({ cls: 'tree-item-children' });
             for (const child of node.children) {
@@ -303,7 +309,7 @@ export class VaultOutlineView extends ItemView {
 
         this.registerDomEvent(self, 'click', (e) => {
             if ((e.target as HTMLElement).closest('.tree-item-icon')) return;
-            this.app.workspace.openLinkText(node.file, '', false);
+            void this.app.workspace.openLinkText(node.file, '', false);
         });
 
         this.registerDomEvent(self, 'contextmenu', (e: MouseEvent) => {
@@ -368,27 +374,28 @@ export class VaultOutlineView extends ItemView {
                         .setIcon('check')
                         .onClick(async () => {
                             await this.app.fileManager.processFrontMatter(nodeFile, (fm) => {
-                                fm.indexed = true;
+                                (fm as Record<string, unknown>)['indexed'] = true;
                             });
                         })
                     );
                 }
 
-                const tags: string[] = cache?.frontmatter?.['tags'] ?? [];
+                const tags: string[] = (cache?.frontmatter?.['tags'] as string[] | undefined) ?? [];
                 const hasDefinicion = tags.some((t: string) =>
                     t.toLowerCase() === 'definición' || t.toLowerCase() === 'definicion'
                 );
                 if (!hasDefinicion) {
                     menu.addItem((item) => item
-                        .setTitle('Add tag: Definición')
+                        .setTitle('Add tag: definición')
                         .setIcon('tag')
                         .onClick(async () => {
                             await this.app.fileManager.processFrontMatter(nodeFile, (fm) => {
-                                const existing: string[] = fm['tags'] ?? [];
+                                const fmRecord = fm as Record<string, unknown>;
+                                const existing: string[] = (fmRecord['tags'] as string[] | undefined) ?? [];
                                 if (!existing.some((t: string) =>
                                     t.toLowerCase() === 'definición' || t.toLowerCase() === 'definicion'
                                 )) {
-                                    fm['tags'] = [...existing, 'Definición'];
+                                    fmRecord['tags'] = [...existing, 'Definición'];
                                 }
                             });
                         })
@@ -402,7 +409,7 @@ export class VaultOutlineView extends ItemView {
         this.registerDomEvent(self, 'keydown', (e: KeyboardEvent) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                this.app.workspace.openLinkText(node.file, '', false);
+                void this.app.workspace.openLinkText(node.file, '', false);
             }
         });
     }
@@ -471,9 +478,8 @@ export class RearrangeModal extends Modal {
 
         const actions = contentEl.createDiv({ cls: 'vault-outline-rearrange-actions' });
         const saveBtn = actions.createEl('button', { text: 'Save order', cls: 'mod-cta' });
-        saveBtn.addEventListener('click', async () => {
-            await this.onSave([...this.items]);
-            this.close();
+        saveBtn.addEventListener('click', () => {
+            void this.onSave([...this.items]).then(() => { this.close(); });
         });
         actions.createEl('button', { text: 'Cancel' })
             .addEventListener('click', () => this.close());

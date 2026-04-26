@@ -63,7 +63,6 @@ export class VaultOutlineSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Vault outline settings' });
 
 		new Setting(containerEl)
 			.setName('Maximum depth')
@@ -109,7 +108,7 @@ export class VaultOutlineSettingTab extends PluginSettingTab {
 
 		// --- Link sources ---------------------------------------------------
 
-		containerEl.createEl('h3', { text: 'Link sources' });
+		new Setting(containerEl).setName('Link sources').setHeading();
 		new Setting(containerEl)
 			.setDesc('Choose which bullet wikilinks are followed when building the outline tree. Any combination can be enabled; results from all active sources are merged.');
 
@@ -141,7 +140,7 @@ export class VaultOutlineSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Under heading')
-			.setDesc('Bullet wikilinks found below a specific heading (see "Heading name" below).')
+			.setDesc('Bullet wikilinks found below a specific heading (see "heading name" below).')
 			.addToggle(toggle =>
 				toggle
 					.setValue(this.plugin.settings.linkSources.includes('under-heading'))
