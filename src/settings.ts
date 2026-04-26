@@ -129,9 +129,10 @@ export class VaultOutlineSettingTab extends PluginSettingTab {
 
 		// --- Link sources ---------------------------------------------------
 
-		new Setting(containerEl).setName('Link sources').setHeading();
 		new Setting(containerEl)
-			.setDesc('Choose which bullet wikilinks are followed when building the outline tree. Any combination can be enabled; results from all active sources are merged.');
+			.setName('Link sources')
+			.setDesc('Choose which bullet wikilinks are followed when building the outline tree. Any combination can be enabled; results from all active sources are merged.')
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName('Comment blocks')
