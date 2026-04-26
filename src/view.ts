@@ -136,7 +136,7 @@ export class VaultOutlineView extends ItemView {
             const container = this.containerEl.children[1] as HTMLElement;
             container.empty();
 
-            const rootCls = 'vault-outline-root' + (this.settings.wrapText ? ' vault-outline-wrap' : '');
+            const rootCls = 'vault-outline-root' + (this.settings.wrapText ? ` vault-outline-wrap vault-outline-wrap-lines-${this.settings.wrapLines}` : '');
             const root = container.createDiv({ cls: rootCls });
             this.renderNode(root, tree, null, true);
 

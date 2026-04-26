@@ -25,6 +25,7 @@ export interface LinkSearchOptions {
 export interface VaultOutlineSettings {
 	maxDepth: number;
 	wrapText: boolean;
+	wrapLines: number;
 	indexNoteName: string;
 	linkSources: LinkSource[];
 	linkSearchHeading: string;
@@ -33,6 +34,7 @@ export interface VaultOutlineSettings {
 export const DEFAULT_SETTINGS: VaultOutlineSettings = {
 	maxDepth: 5,
 	wrapText: false,
+	wrapLines: 3,
 	indexNoteName: '§ Índice de mapas',
 	linkSources: ['comment-block'],
 	linkSearchHeading: 'Subnotas',
@@ -102,9 +104,28 @@ export class VaultOutlineSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.wrapText = value;
 						await this.plugin.saveSettings();
+						wrapLinesSetting.settingEl.style.display = value ? '' : 'none';
 						this.plugin.refreshOutlineView();
 					})
 			);
+
+		const wrapLinesSetting = new Setting(containerEl)
+			.setName('Maximum lines per title')
+			.setDesc('Limit how many lines a wrapped title can span.')
+			.addDropdown(drop =>
+				drop
+					.addOption('2', '2 lines')
+					.addOption('3', '3 lines')
+					.addOption('4', '4 lines')
+					.addOption('5', '5 lines')
+					.setValue(String(this.plugin.settings.wrapLines))
+					.onChange(async (value) => {
+						this.plugin.settings.wrapLines = parseInt(value, 10);
+						await this.plugin.saveSettings();
+						this.plugin.refreshOutlineView();
+					})
+			);
+		wrapLinesSetting.settingEl.style.display = this.plugin.settings.wrapText ? '' : 'none';
 
 		// --- Link sources ---------------------------------------------------
 

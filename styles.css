@@ -59,6 +59,21 @@
 	word-break: break-word;
 }
 
+/* Line-clamp variants (2–5 lines) */
+.vault-outline-wrap-lines-2 .vault-outline-link,
+.vault-outline-wrap-lines-3 .vault-outline-link,
+.vault-outline-wrap-lines-4 .vault-outline-link,
+.vault-outline-wrap-lines-5 .vault-outline-link {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.vault-outline-wrap-lines-2 .vault-outline-link { -webkit-line-clamp: 2; }
+.vault-outline-wrap-lines-3 .vault-outline-link { -webkit-line-clamp: 3; }
+.vault-outline-wrap-lines-4 .vault-outline-link { -webkit-line-clamp: 4; }
+.vault-outline-wrap-lines-5 .vault-outline-link { -webkit-line-clamp: 5; }
+
 .vault-outline-link:hover {
 	color: var(--text-normal);
 	text-decoration: none;
