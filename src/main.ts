@@ -69,6 +69,33 @@ export default class VaultOutlinePlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: 'wikilink-lowercase-alias',
+			name: 'Transform into lowercased aliased wikilink',
+			editorCallback: (editor) => {
+				const cursor = editor.getCursor();
+				const line = editor.getLine(cursor.line);
+				// Find all wikilinks on the line and pick the one under the cursor
+				const wikilinkRe = /\[\[([^\]|]+?)(?:\|[^\]]*?)?\]\]/g;
+				let match: RegExpExecArray | null;
+				while ((match = wikilinkRe.exec(line)) !== null) {
+					const start = match.index;
+					const end = match.index + match[0].length;
+					if (cursor.ch >= start && cursor.ch <= end) {
+						const target = match[1] ?? match[0];
+						const aliased = `[[${target}|${target.toLowerCase()}]]`;
+						editor.replaceRange(
+							aliased,
+							{ line: cursor.line, ch: start },
+							{ line: cursor.line, ch: end }
+						);
+						return;
+					}
+				}
+				new Notice('No wikilink found under cursor.');
+			},
+		});
+
+		this.addCommand({
 			id: 'rearrange-subnotes',
 			name: 'Rearrange subnotes of active note',
 			callback: () => {
