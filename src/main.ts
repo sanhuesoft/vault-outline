@@ -5,6 +5,7 @@ import { hasMapTag, reorderSubnotes } from './graph';
 
 export default class VaultOutlinePlugin extends Plugin {
 	settings: VaultOutlineSettings;
+	private activatingView = false;
 
 	async onload() {
 		await this.loadSettings();
@@ -119,6 +120,12 @@ export default class VaultOutlinePlugin extends Plugin {
 		);
 
 		this.app.workspace.onLayoutReady(() => {
+			// Close any duplicate vault-outline leaves that were persisted from a
+			// previous bug occurrence (keep only the first).
+			const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
+			for (let i = 1; i < existing.length; i++) {
+				existing[i]?.detach();
+			}
 			void this.activateView();
 		});
 	}
@@ -136,23 +143,30 @@ export default class VaultOutlinePlugin extends Plugin {
 	}
 
 	private async activateView() {
-		const { workspace } = this.app;
+		// Guard against concurrent calls racing past the leaves.length check.
+		if (this.activatingView) return;
+		this.activatingView = true;
+		try {
+			const { workspace } = this.app;
 
-		let leaf: WorkspaceLeaf | null = null;
-		const leaves = workspace.getLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
+			let leaf: WorkspaceLeaf | null = null;
+			const leaves = workspace.getLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
 
-		if (leaves.length > 0) {
-			leaf = leaves[0] ?? null;
-		} else {
-			leaf = workspace.getRightLeaf(false);
-			await leaf?.setViewState({ type: VIEW_TYPE_VAULT_OUTLINE, active: true });
+			if (leaves.length > 0) {
+				leaf = leaves[0] ?? null;
+			} else {
+				leaf = workspace.getRightLeaf(false);
+				await leaf?.setViewState({ type: VIEW_TYPE_VAULT_OUTLINE, active: true });
+			}
+
+			if (leaf) {
+				await workspace.revealLeaf(leaf);
+			}
+
+			this.updateView();
+		} finally {
+			this.activatingView = false;
 		}
-
-		if (leaf) {
-			await workspace.revealLeaf(leaf);
-		}
-
-		this.updateView();
 	}
 
 	private updateView() {
