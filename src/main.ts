@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf, setIcon } from 'obsidian';
+import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from 'obsidian';
 import { DEFAULT_SETTINGS, VaultOutlineSettings, VaultOutlineSettingTab } from './settings';
 import { VaultOutlineView, VIEW_TYPE_VAULT_OUTLINE, RearrangeModal } from './view';
 import { hasMapTag, reorderSubnotes } from './graph';
@@ -22,24 +22,6 @@ export default class VaultOutlinePlugin extends Plugin {
 			id: 'open',
 			name: 'Open',
 			callback: () => this.activateView(),
-		});
-
-		this.addCommand({
-			id: 'add-indexed-flag',
-			name: 'Add indexed flag to active note',
-			callback: async () => {
-				const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
-				if (!file) {
-					new Notice('No active note.');
-					return;
-				}
-				const cache = this.app.metadataCache.getFileCache(file);
-				if (cache?.frontmatter?.['indexed'] === true) {
-					new Notice(`"${file.basename}" already has the indexed flag.`);
-					return;
-				}
-				await this.app.fileManager.processFrontMatter(file, (fm) => { (fm as Record<string, unknown>)['indexed'] = true; });
-			},
 		});
 
 		this.addCommand({
@@ -133,13 +115,11 @@ export default class VaultOutlinePlugin extends Plugin {
 				if (view && view.isInCurrentTree(file)) {
 					view.refresh();
 				}
-				this.decorateFileExplorer();
 			})
 		);
 
 		this.app.workspace.onLayoutReady(() => {
 			void this.activateView();
-			this.decorateFileExplorer();
 		});
 	}
 
@@ -206,32 +186,6 @@ export default class VaultOutlinePlugin extends Plugin {
 
 	refreshOutlineView(): void {
 		this.getOutlineView()?.refresh();
-	}
-
-	private decorateFileExplorer(): void {
-		const explorerLeaf = this.app.workspace.getLeavesOfType('file-explorer')[0];
-		if (!explorerLeaf) return;
-		const explorerEl = explorerLeaf.view.containerEl;
-
-		// Remove all existing decorations to avoid duplicates
-		explorerEl.querySelectorAll('.vault-outline-indexed-icon').forEach(el => el.remove());
-
-		// Re-add decorations for every indexed file
-		for (const file of this.app.vault.getMarkdownFiles()) {
-			const cache = this.app.metadataCache.getFileCache(file);
-			if (cache?.frontmatter?.['indexed'] !== true) continue;
-
-			// Find the native file title element via the stable data-path attribute
-			const titleEl = explorerEl.querySelector(
-				`.nav-file-title[data-path="${file.path.replace(/"/g, '\\"')}"]`
-			);
-			if (!titleEl) continue;
-
-			const iconEl = document.createElement('span');
-			iconEl.addClass('vault-outline-indexed-icon');
-			setIcon(iconEl, 'check');
-			titleEl.appendChild(iconEl);
-		}
 	}
 
 	private getOutlineView(): VaultOutlineView | null {

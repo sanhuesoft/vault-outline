@@ -273,27 +273,6 @@ export async function buildOutlineTree(
     return { tree, isMap };
 }
 
-export async function ensureIndexedFrontmatter(app: App, filePaths: string[]): Promise<boolean> {
-    let modified = false;
-    for (const path of filePaths) {
-        const file = app.vault.getAbstractFileByPath(path);
-        if (file instanceof TFile) {
-            const cache = app.metadataCache.getFileCache(file);
-            if (cache?.frontmatter?.['indexed'] !== true) {
-                try {
-                    await app.fileManager.processFrontMatter(file, (fm) => {
-                        (fm as Record<string, unknown>)['indexed'] = true;
-                    });
-                    modified = true;
-                } catch {
-                    // Fail silently to avoid interrupting the flow
-                }
-            }
-        }
-    }
-    return modified;
-}
-
 async function buildNode(
     app: App,
     file: TFile,
@@ -393,7 +372,6 @@ export async function insertSubnote(
 /**
  * Removes the wikilink pointing to childBasename from the parent file.
  * Also removes any now-empty comment blocks left behind.
- * Optionally strips `indexed: true` from the removed note's frontmatter.
  */
 export async function removeSubnote(
     app: App,
@@ -450,27 +428,6 @@ export async function removeSubnote(
 
         return result.join('\n');
     });
-
-    // Strip indexed: true from the removed note, cleaning up empty frontmatter
-    if (childFilePath) {
-        const childFile = app.vault.getAbstractFileByPath(childFilePath);
-        if (childFile instanceof TFile) {
-            try {
-                await app.fileManager.processFrontMatter(childFile, (fm) => {
-                    delete (fm as Record<string, unknown>)['indexed'];
-                });
-                // If frontmatter is now empty, processFrontMatter will leave an empty block.
-                // Remove it by rewriting the file directly.
-                const raw = await app.vault.read(childFile);
-                const emptyFrontmatter = /^---\r?\n---\r?\n?/;
-                if (emptyFrontmatter.test(raw)) {
-                    await app.vault.modify(childFile, raw.replace(emptyFrontmatter, ''));
-                }
-            } catch {
-                // Fail silently
-            }
-        }
-    }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { ItemView, Menu, Modal, Notice, TFile, WorkspaceLeaf } from 'obsidian';
-import { buildOutlineTree, collectTreePaths, insertSubnote, ensureIndexedFrontmatter, reorderSubnotes, removeSubnote } from './graph';
+import { buildOutlineTree, collectTreePaths, insertSubnote, reorderSubnotes, removeSubnote } from './graph';
 import { VaultOutlineSettings } from './settings';
 import { OutlineNode } from './types';
 
@@ -139,14 +139,6 @@ export class VaultOutlineView extends ItemView {
             const rootCls = 'vault-outline-root' + (this.settings.wrapText ? ` vault-outline-wrap vault-outline-wrap-lines-${this.settings.wrapLines}` : '');
             const root = container.createDiv({ cls: rootCls });
             this.renderNode(root, tree, null, true);
-
-            // Only mark notes as indexed when the tree is rooted at a real #mapa note
-            if (isMap) {
-                const anyModified = await ensureIndexedFrontmatter(this.app, Array.from(this.treeFilePaths));
-                if (anyModified && this.currentFile?.path === rootFile.path) {
-                    this.refresh();
-                }
-            }
         });
     }
 
@@ -265,16 +257,6 @@ export class VaultOutlineView extends ItemView {
 
             if (!droppedBasename) return;
 
-            // Safety: block if the dropped note is already indexed (part of another map)
-            const droppedFile = this.app.metadataCache.getFirstLinkpathDest(droppedBasename, node.file);
-            if (droppedFile instanceof TFile) {
-                const droppedCache = this.app.metadataCache.getFileCache(droppedFile);
-                if (droppedCache?.frontmatter?.['indexed'] === true) {
-                    new Notice(`"${droppedBasename}" is already part of a map and cannot be added again.`);
-                    return;
-                }
-            }
-
             await insertSubnote(this.app, node, parentNode, droppedBasename, 'child');
         });
 
@@ -367,18 +349,6 @@ export class VaultOutlineView extends ItemView {
             const nodeFile = this.app.vault.getAbstractFileByPath(node.file);
             if (nodeFile instanceof TFile) {
                 const cache = this.app.metadataCache.getFileCache(nodeFile);
-
-                if (cache?.frontmatter?.['indexed'] !== true) {
-                    menu.addItem((item) => item
-                        .setTitle('Add indexed flag')
-                        .setIcon('check')
-                        .onClick(async () => {
-                            await this.app.fileManager.processFrontMatter(nodeFile, (fm) => {
-                                (fm as Record<string, unknown>)['indexed'] = true;
-                            });
-                        })
-                    );
-                }
 
                 const tags: string[] = (cache?.frontmatter?.['tags'] as string[] | undefined) ?? [];
                 const hasDefinicion = tags.some((t: string) =>
