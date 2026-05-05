@@ -199,9 +199,17 @@ export default class VaultOutlinePlugin extends Plugin {
 
 		// No markdown view is currently focused.
 		// If markdown notes are still open (user clicked on a panel like the outline),
-		// don't change anything.
+		// don't change anything — unless the view has never been initialized.
 		const markdownLeaves = this.app.workspace.getLeavesOfType('markdown');
-		if (markdownLeaves.length > 0) return;
+		if (markdownLeaves.length > 0) {
+			if (!view.currentFile) {
+				// Seed from the first available markdown leaf so the panel
+				// isn't left blank when the user opens the plugin for the first time.
+				const firstFile = (markdownLeaves[0]?.view as MarkdownView | undefined)?.file ?? null;
+				if (firstFile) view.setFile(firstFile);
+			}
+			return;
+		}
 
 		// No open notes at all → fall back to the general index.
 		const indexFile = this.app.vault.getMarkdownFiles().find(

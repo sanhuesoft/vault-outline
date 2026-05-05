@@ -155,6 +155,10 @@ export class VaultOutlineView extends ItemView {
             const rootCls = 'vault-outline-root' + (this.settings.wrapText ? ` vault-outline-wrap vault-outline-wrap-lines-${this.settings.wrapLines}` : '');
             const root = container.createDiv({ cls: rootCls });
             this.renderNode(root, tree, null, true);
+
+            // Scroll the highlighted note into view
+            const activeEl = container.querySelector('.vault-outline-active') as HTMLElement | null;
+            activeEl?.scrollIntoView({ block: 'nearest' });
         });
     }
 
@@ -192,14 +196,16 @@ export class VaultOutlineView extends ItemView {
     private switchToLocal(): void {
         if (this.viewMode === 'local') return;
         this.viewMode = 'local';
+
+        // getActiveViewOfType returns null when the outline panel has focus,
+        // so fall back to the first open markdown leaf.
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (activeView?.file) {
-            this.currentFile = activeView.file;
-            this.activeFilePath = activeView.file.path;
-        } else {
-            this.currentFile = null;
-            this.activeFilePath = null;
-        }
+        const file = activeView?.file
+            ?? (this.app.workspace.getLeavesOfType('markdown')[0]?.view as MarkdownView | undefined)?.file
+            ?? null;
+
+        this.currentFile = file;
+        this.activeFilePath = file?.path ?? null;
         this.refresh();
     }
 
@@ -224,7 +230,8 @@ export class VaultOutlineView extends ItemView {
 
         if (roots.length === 0) {
             const emptyEl = container.createDiv({ cls: 'vault-outline-empty' });
-            emptyEl.createEl('p', { text: 'No se encontraron mapas raíz.' });
+            emptyEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+            emptyEl.createEl('p', { text: 'Create some maps' });
             return;
         }
 
