@@ -1,5 +1,5 @@
 import { ItemView, MarkdownView, Menu, Modal, Notice, TFile, WorkspaceLeaf } from 'obsidian';
-import { buildOutlineTree, collectTreePaths, insertSubnote, reorderSubnotes, removeSubnote } from './graph';
+import { buildOutlineTree, collectTreePaths, findRootMaps, insertSubnote, reorderSubnotes, removeSubnote } from './graph';
 import { VaultOutlineSettings } from './settings';
 import { OutlineNode } from './types';
 
@@ -43,7 +43,7 @@ export class VaultOutlineView extends ItemView {
     private draggedNode: OutlineNode | null = null;
     private draggedParent: OutlineNode | null = null;
     private pinned = false;
-    private viewMode: 'local' | 'master' = 'local';
+    private viewMode: 'local' | 'global' = 'local';
     private pinBtn: HTMLElement | null = null;
 
     constructor(leaf: WorkspaceLeaf, settings: VaultOutlineSettings) {
@@ -81,7 +81,7 @@ export class VaultOutlineView extends ItemView {
     }
 
     isPinned(): boolean { return this.pinned; }
-    getViewMode(): 'local' | 'master' { return this.viewMode; }
+    getViewMode(): 'local' | 'global' { return this.viewMode; }
 
     setFile(file: TFile | null): void {
         if (!file) {
@@ -124,6 +124,11 @@ export class VaultOutlineView extends ItemView {
         content.empty();
         this.renderToolbar(content);
 
+        if (this.viewMode === 'global') {
+            void this.renderGlobalView(content);
+            return;
+        }
+
         if (!this.currentFile) {
             this.treeFilePaths = new Set();
             const emptyEl = content.createDiv({ cls: 'vault-outline-empty' });
@@ -156,32 +161,32 @@ export class VaultOutlineView extends ItemView {
     private renderToolbar(container: HTMLElement): void {
         const toolbar = container.createDiv({ cls: 'vault-outline-toolbar' });
 
-        // Pin button (inline, always visible regardless of theme)
-        const pinBtn = toolbar.createEl('button', {
-            cls: 'vault-outline-pin-btn' + (this.pinned ? ' is-active' : ''),
-            attr: { 'aria-label': this.pinned ? 'Desfijar esquema' : 'Fijar esquema' },
-        });
-        // Thumbtack SVG
-        pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
-        pinBtn.addEventListener('click', () => {
-            this.pinned = !this.pinned;
-            // Keep the header action in sync too
-            this.pinBtn?.classList.toggle('is-active', this.pinned);
-            this.refresh();
-        });
+        // Pin button — only meaningful in local mode
+        if (this.viewMode === 'local') {
+            const pinBtn = toolbar.createEl('button', {
+                cls: 'vault-outline-pin-btn' + (this.pinned ? ' is-active' : ''),
+                attr: { 'aria-label': this.pinned ? 'Desfijar esquema' : 'Fijar esquema' },
+            });
+            pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+            pinBtn.addEventListener('click', () => {
+                this.pinned = !this.pinned;
+                this.pinBtn?.classList.toggle('is-active', this.pinned);
+                this.refresh();
+            });
+        }
 
         const modeGroup = toolbar.createDiv({ cls: 'vault-outline-mode-group' });
 
         const localBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
-        localBtn.setText('Local');
+        localBtn.setText('Esquema local');
         if (this.viewMode === 'local') localBtn.addClass('is-active');
 
-        const masterBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
-        masterBtn.setText('Mapa maestro');
-        if (this.viewMode === 'master') masterBtn.addClass('is-active');
+        const globalBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
+        globalBtn.setText('Esquema global');
+        if (this.viewMode === 'global') globalBtn.addClass('is-active');
 
         localBtn.addEventListener('click', () => this.switchToLocal());
-        masterBtn.addEventListener('click', () => this.switchToMaster());
+        globalBtn.addEventListener('click', () => this.switchToGlobal());
     }
 
     private switchToLocal(): void {
@@ -198,15 +203,50 @@ export class VaultOutlineView extends ItemView {
         this.refresh();
     }
 
-    private switchToMaster(): void {
-        if (this.viewMode === 'master') return;
-        this.viewMode = 'master';
-        const indexFile = this.app.vault.getMarkdownFiles().find(
-            f => f.basename === this.settings.indexNoteName
-        ) ?? null;
-        this.currentFile = indexFile;
-        this.activeFilePath = indexFile?.path ?? null;
+    private switchToGlobal(): void {
+        if (this.viewMode === 'global') return;
+        this.viewMode = 'global';
+        // Global mode doesn't pin and doesn't need a currentFile root
+        this.pinned = false;
+        this.pinBtn?.classList.remove('is-active');
+        this.currentFile = null;
+        this.activeFilePath = null;
         this.refresh();
+    }
+
+    private async renderGlobalView(container: HTMLElement): Promise<void> {
+        const linkSearchOptions = {
+            sources: this.settings.linkSources,
+            headingName: this.settings.linkSearchHeading,
+        };
+        const roots = await findRootMaps(this.app, linkSearchOptions);
+        if (this.viewMode !== 'global') return; // mode changed while loading
+
+        if (roots.length === 0) {
+            const emptyEl = container.createDiv({ cls: 'vault-outline-empty' });
+            emptyEl.createEl('p', { text: 'No se encontraron mapas raíz.' });
+            return;
+        }
+
+        roots.sort((a, b) => a.basename.localeCompare(b.basename, undefined, { sensitivity: 'base' }));
+        const list = container.createDiv({ cls: 'vault-outline-root' });
+        for (const mapFile of roots) {
+            const item = list.createDiv({ cls: 'tree-item vault-outline-node vault-outline-node-root' });
+            const self = item.createDiv({ cls: 'tree-item-self' });
+            self.setAttribute('tabindex', '0');
+            self.createDiv({ cls: 'tree-item-icon' });
+            const text = self.createDiv({ cls: 'tree-item-inner vault-outline-link vault-outline-root-link' });
+            text.setText(mapFile.basename);
+            this.registerDomEvent(self, 'click', () => {
+                void this.app.workspace.openLinkText(mapFile.path, '', false);
+            });
+            this.registerDomEvent(self, 'keydown', (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    void this.app.workspace.openLinkText(mapFile.path, '', false);
+                }
+            });
+        }
     }
 
     private renderNode(parent: HTMLElement, node: OutlineNode, parentNode: OutlineNode | null, isRoot: boolean): void {

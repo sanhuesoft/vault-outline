@@ -325,6 +325,27 @@ async function buildNodesFromStructure(
     return result;
 }
 
+/**
+ * Returns all map files (tagged #mapa) that are not referenced as bullet
+ * wikilinks inside any other file — i.e. the "top-level" maps with no parent.
+ */
+export async function findRootMaps(app: App, options: LinkSearchOptions): Promise<TFile[]> {
+    const allFiles = app.vault.getMarkdownFiles();
+    const mapFiles = allFiles.filter(f => hasMapTag(app, f));
+    if (mapFiles.length === 0) return [];
+
+    const referencedBasenames = new Set<string>();
+    for (const file of allFiles) {
+        const content = await app.vault.cachedRead(file);
+        for (const linkPath of collectBulletLinkPaths(content, options)) {
+            const base = (linkPath.split('/').pop() ?? linkPath).replace(/\.md$/, '');
+            referencedBasenames.add(base);
+        }
+    }
+
+    return mapFiles.filter(f => !referencedBasenames.has(f.basename));
+}
+
 export function collectTreePaths(node: OutlineNode, out: Set<string> = new Set()): Set<string> {
     if (node.file) out.add(node.file); // skip virtual nodes (empty file)
     for (const child of node.children) {
