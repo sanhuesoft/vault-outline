@@ -173,6 +173,18 @@ export default class VaultOutlinePlugin extends Plugin {
 		const view = this.getOutlineView();
 		if (!view) return;
 
+		// Pinned: don't react to navigation at all.
+		if (view.isPinned()) return;
+
+		// Master map mode: only update the active-note highlight, never re-root.
+		if (view.getViewMode() === 'master') {
+			const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (activeView?.file && view.isInCurrentTree(activeView.file)) {
+				view.setActiveFile(activeView.file.path);
+			}
+			return;
+		}
+
 		const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (activeView?.file) {
 			// If the active note is itself a map, always re-root the outline at it.

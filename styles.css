@@ -9,9 +9,22 @@
 }
 
 .vault-outline-empty {
-	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	padding: 24px 12px;
 	color: var(--text-muted);
+}
+
+.vault-outline-empty svg {
+	opacity: 0.4;
+}
+
+.vault-outline-empty p {
+	margin: 0;
 	font-style: italic;
+	font-size: var(--font-smaller);
 }
 
 .vault-outline-root {
@@ -172,4 +185,71 @@
 .vault-outline-node > .tree-item-self.vault-outline-active .vault-outline-link {
 	color: var(--text-accent);
 	font-weight: var(--font-semibold);
+}
+
+/* ── View-mode toolbar ─────────────────────────────────────────────────── */
+
+.vault-outline-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 8px 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Pin button — always visible in the toolbar */
+.vault-outline-pin-btn {
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: background 0.1s, color 0.1s;
+}
+
+.vault-outline-pin-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.vault-outline-pin-btn.is-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.vault-outline-mode-group {
+	display: flex;
+	gap: 4px;
+	flex: 1;
+}
+
+.vault-outline-mode-btn {
+	flex: 1;
+	padding: 3px 6px;
+	font-size: var(--font-smaller);
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: background 0.1s, color 0.1s;
+}
+
+.vault-outline-mode-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.vault-outline-mode-btn.is-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
 }
