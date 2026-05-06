@@ -120,12 +120,6 @@ export default class VaultOutlinePlugin extends Plugin {
 		);
 
 		this.app.workspace.onLayoutReady(() => {
-			// Close any duplicate vault-outline leaves that were persisted from a
-			// previous bug occurrence (keep only the first).
-			const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
-			for (let i = 1; i < existing.length; i++) {
-				existing[i]?.detach();
-			}
 			void this.activateView();
 		});
 	}
@@ -149,12 +143,14 @@ export default class VaultOutlinePlugin extends Plugin {
 		try {
 			const { workspace } = this.app;
 
-			let leaf: WorkspaceLeaf | null = null;
+			// Enforce a single instance: detach any extras before proceeding.
 			const leaves = workspace.getLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
+			for (let i = 1; i < leaves.length; i++) {
+				leaves[i]?.detach();
+			}
 
-			if (leaves.length > 0) {
-				leaf = leaves[0] ?? null;
-			} else {
+			let leaf: WorkspaceLeaf | null = leaves[0] ?? null;
+			if (!leaf) {
 				leaf = workspace.getRightLeaf(false);
 				await leaf?.setViewState({ type: VIEW_TYPE_VAULT_OUTLINE, active: true });
 			}
