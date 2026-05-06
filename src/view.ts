@@ -1,4 +1,4 @@
-import { ItemView, MarkdownView, Menu, Modal, Notice, TFile, WorkspaceLeaf } from 'obsidian';
+import { App, FuzzySuggestModal, ItemView, MarkdownView, Menu, Modal, Notice, TFile, WorkspaceLeaf, getAllTags } from 'obsidian';
 import { buildOutlineTree, collectTreePaths, findRootMaps, insertSubnote, reorderSubnotes, removeSubnote } from './graph';
 import { VaultOutlineSettings } from './settings';
 import { OutlineNode } from './types';
@@ -171,19 +171,21 @@ export class VaultOutlineView extends ItemView {
         globalBtn.setText('Índice temático');
         if (this.viewMode === 'global') globalBtn.addClass('is-active');
 
-
         const localBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
         localBtn.setText('Esquema local');
         if (this.viewMode === 'local') localBtn.addClass('is-active');
 
-
-        // Pin button — only meaningful in local mode
-        if (this.viewMode === 'local') {
-            const pinBtn = toolbar.createEl('button', {
-                cls: 'vault-outline-pin-btn' + (this.pinned ? ' is-active' : ''),
-                attr: { 'aria-label': this.pinned ? 'Desfijar esquema' : 'Fijar esquema' },
-            });
-            pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+        // Pin button — inside the group, disabled in global mode
+        const isGlobal = this.viewMode === 'global';
+        const pinBtn = modeGroup.createEl('button', {
+            cls: 'vault-outline-mode-btn vault-outline-pin-btn' + (this.pinned ? ' is-active' : '') + (isGlobal ? ' is-disabled' : ''),
+            attr: {
+                'aria-label': this.pinned ? 'Desfijar esquema' : 'Fijar esquema',
+                ...(isGlobal ? { disabled: 'true' } : {}),
+            },
+        });
+        pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
+        if (!isGlobal) {
             pinBtn.addEventListener('click', () => {
                 this.pinned = !this.pinned;
                 this.pinBtn?.classList.toggle('is-active', this.pinned);
@@ -460,6 +462,17 @@ export class VaultOutlineView extends ItemView {
 
             menu.addSeparator();
 
+            menu.addItem((menuItem) => menuItem
+                .setTitle('Append subnote')
+                .setIcon('file-plus')
+                .onClick(() => {
+                    new SubnoteSuggestModal(this.app, async (file) => {
+                        await insertSubnote(this.app, node, parentNode, file.basename, 'child');
+                        this.refresh();
+                    }).open();
+                })
+            );
+
             // Remove note: only available when the node has a parent
             if (parentNode) {
                 menu.addItem((item) => item
@@ -516,6 +529,33 @@ export class VaultOutlineView extends ItemView {
             if (this.isDescendantOf(potentialDescendant, child)) return true;
         }
         return false;
+    }
+}
+
+export class SubnoteSuggestModal extends FuzzySuggestModal<TFile> {
+    private files: TFile[];
+    private onChoose: (file: TFile) => Promise<void>;
+
+    constructor(app: App, onChoose: (file: TFile) => Promise<void>) {
+        super(app);
+        this.onChoose = onChoose;
+        this.setPlaceholder('Elegir nota para añadir como subnota…');
+        this.files = app.vault.getMarkdownFiles().filter(f => {
+            const lowerPath = f.path.toLowerCase();
+            if (lowerPath.includes('bibliograf')) return false;
+            const cache = app.metadataCache.getFileCache(f);
+            const tags = cache ? (getAllTags(cache) ?? []) : [];
+            if (tags.some(t => t.toLowerCase().includes('bibliograf'))) return false;
+            return true;
+        }).sort((a, b) => a.basename.localeCompare(b.basename, undefined, { sensitivity: 'base' }));
+    }
+
+    getItems(): TFile[] { return this.files; }
+
+    getItemText(item: TFile): string { return item.basename; }
+
+    onChooseItem(item: TFile): void {
+        void this.onChoose(item);
     }
 }
 

@@ -125,7 +125,7 @@ export default class VaultOutlinePlugin extends Plugin {
 	}
 
 	onunload() {
-		// Do not detach leaves on unload — preserves user-defined panel position.
+		this.app.workspace.detachLeavesOfType(VIEW_TYPE_VAULT_OUTLINE);
 	}
 
 	async loadSettings() {

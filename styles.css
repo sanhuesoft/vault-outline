@@ -209,32 +209,20 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-/* Pin button — always visible in the toolbar */
+/* Pin button — icon-only member of the mode group */
 .vault-outline-pin-btn {
-	flex-shrink: 0;
+	flex: 0 0 auto;
+	aspect-ratio: 1 / 1;
+	padding: 0;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 26px;
-	height: 26px;
-	padding: 0;
-	border-radius: var(--radius-s);
-	border: 1px solid var(--background-modifier-border);
-	background: transparent;
-	color: var(--text-muted);
-	cursor: pointer;
-	transition: background 0.1s, color 0.1s;
 }
 
-.vault-outline-pin-btn:hover {
-	background: var(--background-modifier-hover);
-	color: var(--text-normal);
-}
-
-.vault-outline-pin-btn.is-active {
-	background: var(--interactive-accent);
-	border-color: var(--interactive-accent);
-	color: var(--text-on-accent);
+.vault-outline-pin-btn.is-disabled {
+	opacity: 0.35;
+	cursor: not-allowed;
+	pointer-events: none;
 }
 
 .vault-outline-mode-group {
@@ -262,6 +250,5 @@
 
 .vault-outline-mode-btn.is-active {
 	background: var(--interactive-accent);
-	border-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
