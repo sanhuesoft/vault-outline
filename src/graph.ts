@@ -319,6 +319,16 @@ async function buildNodesFromStructure(
                 const child = await buildNode(app, linkedFile, depth - 1, visited, options);
                 if (item.alias) child.alias = item.alias;
                 result.push(child);
+            } else {
+                // Note doesn't exist in the vault — emit it as an unresolved placeholder
+                const baseName = (item.path.split('/').pop() ?? item.path).replace(/\.md$/, '');
+                result.push({
+                    file: '',
+                    name: baseName,
+                    alias: item.alias,
+                    unresolved: true,
+                    children: [],
+                });
             }
         }
     }

@@ -165,6 +165,18 @@ export class VaultOutlineView extends ItemView {
     private renderToolbar(container: HTMLElement): void {
         const toolbar = container.createDiv({ cls: 'vault-outline-toolbar' });
 
+        const modeGroup = toolbar.createDiv({ cls: 'vault-outline-mode-group' });
+
+        const globalBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
+        globalBtn.setText('Índice temático');
+        if (this.viewMode === 'global') globalBtn.addClass('is-active');
+
+
+        const localBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
+        localBtn.setText('Esquema local');
+        if (this.viewMode === 'local') localBtn.addClass('is-active');
+
+
         // Pin button — only meaningful in local mode
         if (this.viewMode === 'local') {
             const pinBtn = toolbar.createEl('button', {
@@ -179,15 +191,6 @@ export class VaultOutlineView extends ItemView {
             });
         }
 
-        const modeGroup = toolbar.createDiv({ cls: 'vault-outline-mode-group' });
-
-        const localBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
-        localBtn.setText('Esquema local');
-        if (this.viewMode === 'local') localBtn.addClass('is-active');
-
-        const globalBtn = modeGroup.createEl('button', { cls: 'vault-outline-mode-btn' });
-        globalBtn.setText('Esquema global');
-        if (this.viewMode === 'global') globalBtn.addClass('is-active');
 
         localBtn.addEventListener('click', () => this.switchToLocal());
         globalBtn.addEventListener('click', () => this.switchToGlobal());
@@ -282,6 +285,15 @@ export class VaultOutlineView extends ItemView {
             }
 
             self.createDiv({ cls: 'tree-item-inner vault-outline-virtual-label' }).setText(node.name);
+            return;
+        }
+
+        // ── Unresolved link node ───────────────────────────────────────────────
+        if (node.unresolved) {
+            const item = parent.createDiv({ cls: 'tree-item vault-outline-node vault-outline-unresolved' });
+            const self = item.createDiv({ cls: 'tree-item-self' });
+            self.createDiv({ cls: 'tree-item-icon' });
+            self.createDiv({ cls: 'tree-item-inner vault-outline-link' }).setText(node.alias ?? node.name);
             return;
         }
 

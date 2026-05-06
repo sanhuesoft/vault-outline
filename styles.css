@@ -1,5 +1,21 @@
 /* Vault Outline – minimal overrides on top of Obsidian's native tree-item styles */
 
+/* Unresolved (non-existent) note nodes — dimmed and non-interactive */
+.vault-outline-unresolved > .tree-item-self {
+	cursor: default;
+	border-radius: var(--radius-s);
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 6px 2px 24px;
+	opacity: 0.4;
+	pointer-events: none;
+}
+
+.vault-outline-unresolved > .tree-item-self .vault-outline-link {
+	color: var(--text-muted);
+}
+
 .vault-outline-dragging {
 	opacity: 0.5;
 }
@@ -29,10 +45,6 @@
 
 .vault-outline-root {
 	padding: 4px 0;
-}
-
-.vault-outline-node-root > .tree-item-self .vault-outline-link {
-	font-weight: var(--font-semibold);
 }
 
 /* Make the self-row cursor a pointer and show hover highlight */
