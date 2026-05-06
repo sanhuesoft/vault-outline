@@ -1,17 +1,11 @@
 /* Vault Outline – minimal overrides on top of Obsidian's native tree-item styles */
 
-/* Unresolved (non-existent) note nodes — dimmed and non-interactive */
-.vault-outline-unresolved > .tree-item-self {
-	cursor: default;
-	border-radius: var(--radius-s);
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 2px 6px 2px 24px;
-	opacity: 0.4;
-	pointer-events: none;
+/* Make the view content area a positioning context for the floating pin button */
+.view-type-vault-outline-view .view-content {
+	position: relative;
 }
 
+/* Unresolved (non-existent) note nodes — muted color only, same layout as real nodes */
 .vault-outline-unresolved > .tree-item-self .vault-outline-link {
 	color: var(--text-muted);
 }
@@ -209,20 +203,41 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-/* Pin button — icon-only member of the mode group */
-.vault-outline-pin-btn {
-	flex: 0 0 auto;
-	aspect-ratio: 1 / 1;
-	padding: 0;
+/* Pin button — floating circular FAB, bottom-right of the local view */
+/* Shared FAB styles */
+.vault-outline-fab {
+	position: absolute;
+	bottom: 14px;
+	z-index: 10;
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: pointer;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
+	padding: 0;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+	transition: background 0.1s, color 0.1s, box-shadow 0.1s;
 }
 
-.vault-outline-pin-btn.is-disabled {
-	opacity: 0.35;
-	cursor: not-allowed;
-	pointer-events: none;
+.vault-outline-fab:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+}
+
+.vault-outline-pin-btn {
+	right: 14px;
+}
+
+.vault-outline-pin-btn.is-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
 }
 
 .vault-outline-mode-group {

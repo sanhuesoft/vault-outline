@@ -175,27 +175,22 @@ export class VaultOutlineView extends ItemView {
         localBtn.setText('Esquema local');
         if (this.viewMode === 'local') localBtn.addClass('is-active');
 
-        // Pin button — inside the group, disabled in global mode
-        const isGlobal = this.viewMode === 'global';
-        const pinBtn = modeGroup.createEl('button', {
-            cls: 'vault-outline-mode-btn vault-outline-pin-btn' + (this.pinned ? ' is-active' : '') + (isGlobal ? ' is-disabled' : ''),
-            attr: {
-                'aria-label': this.pinned ? 'Desfijar esquema' : 'Fijar esquema',
-                ...(isGlobal ? { disabled: 'true' } : {}),
-            },
-        });
-        pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
-        if (!isGlobal) {
+        localBtn.addEventListener('click', () => this.switchToLocal());
+        globalBtn.addEventListener('click', () => this.switchToGlobal());
+
+        // Floating buttons — only in local mode
+        if (this.viewMode === 'local') {
+            // Pin button
+            const pinBtn = container.createEl('button', {
+                cls: 'vault-outline-fab vault-outline-pin-btn' + (this.pinned ? ' is-active' : ''),
+                attr: { 'aria-label': this.pinned ? 'Desfijar esquema' : 'Fijar esquema' },
+            });
+            pinBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`;
             pinBtn.addEventListener('click', () => {
                 this.pinned = !this.pinned;
-                this.pinBtn?.classList.toggle('is-active', this.pinned);
                 this.refresh();
             });
         }
-
-
-        localBtn.addEventListener('click', () => this.switchToLocal());
-        globalBtn.addEventListener('click', () => this.switchToGlobal());
     }
 
     private switchToLocal(): void {
@@ -294,8 +289,27 @@ export class VaultOutlineView extends ItemView {
         if (node.unresolved) {
             const item = parent.createDiv({ cls: 'tree-item vault-outline-node vault-outline-unresolved' });
             const self = item.createDiv({ cls: 'tree-item-self' });
+            self.setAttribute('tabindex', '0');
             self.createDiv({ cls: 'tree-item-icon' });
             self.createDiv({ cls: 'tree-item-inner vault-outline-link' }).setText(node.alias ?? node.name);
+            this.registerDomEvent(self, 'click', () => {
+                const modal = new Modal(this.app);
+                modal.titleEl.setText('Nota no encontrada');
+                modal.contentEl.createEl('p', { text: `"${node.name}" no existe en el vault. ¿Quieres crearla?` });
+                const btnRow = modal.contentEl.createDiv({ cls: 'modal-button-container' });
+                const createBtn = btnRow.createEl('button', { cls: 'mod-cta', text: 'Crear nota' });
+                const cancelBtn = btnRow.createEl('button', { text: 'Cancelar' });
+                createBtn.addEventListener('click', async () => {
+                    modal.close();
+                    const newFile = await this.app.vault.create(`${node.name}.md`, '');
+                    await this.app.workspace.openLinkText(newFile.path, '', false);
+                });
+                cancelBtn.addEventListener('click', () => modal.close());
+                modal.open();
+            });
+            this.registerDomEvent(self, 'keydown', (e: KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); self.click(); }
+            });
             return;
         }
 
@@ -408,7 +422,7 @@ export class VaultOutlineView extends ItemView {
         }
 
 
-        const isActive = node.file === this.activeFilePath;
+        const isActive = !this.pinned && node.file === this.activeFilePath;
         const text = self.createDiv({
             cls: 'tree-item-inner vault-outline-link' + (isRoot ? ' vault-outline-root-link' : '')
         });
